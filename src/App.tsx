@@ -1,0 +1,1471 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Swords,
+  ShoppingBag,
+  User,
+  Trophy,
+  Calendar,
+  Settings,
+  Flame,
+  Sparkles,
+  Volume2,
+  VolumeX,
+  Play,
+  RotateCcw,
+  Shield,
+  Snowflake,
+  Zap,
+} from 'lucide-react';
+import {
+  UserProfile,
+  GameMode,
+  MoleData,
+  MoleType,
+  MolePattern,
+  FloatingText,
+  MultiplayerRoom,
+  PushNotification,
+} from './types';
+import { storageService, DEFAULT_HAMMERS, DEFAULT_POWERUPS } from './services/storage';
+import { sfx } from './services/sfx';
+import { dynamicSoundtrack } from './services/soundtrack';
+import { multiplayerClient } from './services/multiplayer';
+
+import { MoleScene3D } from './components/game3d/MoleScene3D';
+import { GameHUD } from './components/ui/GameHUD';
+import { MultiplayerLobby } from './components/ui/MultiplayerLobby';
+import { MultiplayerMatchOverlay } from './components/ui/MultiplayerMatchOverlay';
+import { ShopModal } from './components/ui/ShopModal';
+import { AvatarCustomizer } from './components/ui/AvatarCustomizer';
+import { LeaderboardModal } from './components/ui/LeaderboardModal';
+import { EventsAndChallengesModal } from './components/ui/EventsAndChallengesModal';
+import { PushNotificationsToast } from './components/ui/PushNotificationsToast';
+import { PauseAndSettingsModal } from './components/ui/PauseAndSettingsModal';
+import { GameOverModal } from './components/ui/GameOverModal';
+import { MoleCodexModal } from './components/modals/MoleCodexModal';
+import { PizzaRecipeCodex } from './components/modals/PizzaRecipeCodex';
+import { ChefIdleCharacter } from './components/ui/ChefIdleCharacter';
+import {
+  rollIngredientDropForMole,
+  calculateRecipeBuffs,
+  PIZZA_RECIPES,
+  checkRecipeRequirements,
+} from './data/pizzaRecipes';
+
+export default function App() {
+  // 1. Profile & Settings State
+  const [profile, setProfile] = useState<UserProfile>(() => storageService.loadProfile());
+  const [activeModal, setActiveModal] = useState<
+    'shop' | 'avatar' | 'leaderboard' | 'events' | 'settings' | 'codex' | 'pizza_codex' | null
+  >(null);
+
+  // 2. Game Lifecycle State
+  const [gameState, setGameState] = useState<'menu' | 'playing' | 'paused' | 'gameover' | 'multiplayer_lobby'>('menu');
+  const [gameMode, setGameMode] = useState<GameMode>('arcade');
+
+  // 3. Round Gameplay Stats & Ingredient Loot
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [molesHit, setMolesHit] = useState(0);
+  const [goldenHit, setGoldenHit] = useState(0);
+  const [bombsHit, setBombsHit] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(60);
+  const [frenzyActive, setFrenzyActive] = useState(false);
+  const [activePowerups, setActivePowerups] = useState<Record<string, number>>({});
+  const [sessionIngredients, setSessionIngredients] = useState<Record<string, number>>({});
+
+  // 4. Moles & 3D Stage Objects
+  const [moles, setMoles] = useState<MoleData[]>([]);
+  const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
+
+  // 4b. Screen Shake Tactile Feedback Engine
+  const [screenShake, setScreenShake] = useState<{ x: number; y: number; rotate: number }>({ x: 0, y: 0, rotate: 0 });
+  const [screenShakeClass, setScreenShakeClass] = useState<string>('');
+  const [screenShakeTrigger, setScreenShakeTrigger] = useState<{ intensity: number; timestamp: number }>({ intensity: 0, timestamp: 0 });
+  const [particleExplosionTrigger, setParticleExplosionTrigger] = useState<{
+    x: number;
+    y: number;
+    type: MoleType;
+    isCrit?: boolean;
+    isDefeated?: boolean;
+    timestamp: number;
+  } | null>(null);
+  const shakeAnimRef = useRef<number | null>(null);
+  const shakeMagnitudeRef = useRef<number>(0);
+  const shakeClassTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerScreenShake = useCallback((intensity: number) => {
+    // 1. Mobile tactile haptic vibration (when available on touch devices)
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        const vibMs = Math.min(80, Math.max(15, Math.round(intensity * 3.5)));
+        navigator.vibrate(vibMs);
+      } catch {
+        // Vibration not permitted or supported
+      }
+    }
+
+    // 2. Synchronize with 3D Three.js camera shake
+    setScreenShakeTrigger({ intensity, timestamp: Date.now() });
+
+    // 3. Select CSS animation class based on intensity tier
+    let animClass = 'shake-light';
+    if (intensity >= 15) {
+      animClass = 'shake-epic';
+    } else if (intensity >= 10) {
+      animClass = 'shake-heavy';
+    } else if (intensity >= 6.5) {
+      animClass = 'shake-medium';
+    }
+    setScreenShakeClass(animClass);
+    if (shakeClassTimerRef.current) clearTimeout(shakeClassTimerRef.current);
+    shakeClassTimerRef.current = setTimeout(() => {
+      setScreenShakeClass('');
+    }, 450);
+
+    // 4. Dynamic Physics-Damped Frame Loop (additive accumulation for rapid combos)
+    shakeMagnitudeRef.current = Math.min(32, Math.max(shakeMagnitudeRef.current, intensity) * 1.15);
+
+    if (shakeAnimRef.current === null) {
+      const decay = 0.85;
+      const step = () => {
+        if (shakeMagnitudeRef.current < 0.25) {
+          shakeMagnitudeRef.current = 0;
+          setScreenShake({ x: 0, y: 0, rotate: 0 });
+          shakeAnimRef.current = null;
+          return;
+        }
+
+        const mag = shakeMagnitudeRef.current;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = (0.4 + Math.random() * 0.6) * mag;
+        const x = Math.cos(angle) * dist;
+        const y = Math.sin(angle) * dist;
+        const rotate = (Math.random() - 0.5) * mag * 0.12;
+
+        setScreenShake({ x, y, rotate });
+        shakeMagnitudeRef.current *= decay;
+        shakeAnimRef.current = requestAnimationFrame(step);
+      };
+      shakeAnimRef.current = requestAnimationFrame(step);
+    }
+  }, []);
+
+  // Cleanup screen shake on unmount
+  useEffect(() => {
+    return () => {
+      if (shakeAnimRef.current !== null) cancelAnimationFrame(shakeAnimRef.current);
+      if (shakeClassTimerRef.current) clearTimeout(shakeClassTimerRef.current);
+    };
+  }, []);
+
+  // 4c. Kitchen Disaster Game Event State
+  const [kitchenDisasterActive, setKitchenDisasterActive] = useState<boolean>(false);
+  const [disasterTimeRemaining, setDisasterTimeRemaining] = useState<number>(10);
+  const disasterCooldownRef = useRef<number>(0);
+
+  // Trigger Kitchen Disaster Event
+  const triggerKitchenDisaster = useCallback(() => {
+    setKitchenDisasterActive(true);
+    setDisasterTimeRemaining(10);
+    sfx.playKitchenDisasterAlert();
+    triggerScreenShake(9);
+
+    // Floating notification alert banner
+    setFloatingTexts((prev) => [
+      ...prev,
+      {
+        id: `disaster_banner_${Date.now()}`,
+        text: '🚨 ¡DESASTRE EN COCINA! ¡SPAWN VELOZ! 🚨',
+        x: typeof window !== 'undefined' ? window.innerWidth / 2 : 400,
+        y: typeof window !== 'undefined' ? window.innerHeight / 3 : 250,
+        color: '#ef4444',
+      },
+    ]);
+  }, [triggerScreenShake]);
+
+  // Kitchen Disaster 10-Second Countdown Effect
+  useEffect(() => {
+    if (!kitchenDisasterActive) return;
+
+    const interval = setInterval(() => {
+      setDisasterTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setKitchenDisasterActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [kitchenDisasterActive]);
+
+  // 5. Multiplayer State
+  const [mpRoom, setMpRoom] = useState<MultiplayerRoom | null>(null);
+  const [mpAttacks, setMpAttacks] = useState<{ type: string; expiresAt: number }[]>([]);
+
+  // Round Victory / Record Celebration Tracking
+  const [isNewHighScoreRound, setIsNewHighScoreRound] = useState(false);
+  const [isMultiplayerWinRound, setIsMultiplayerWinRound] = useState(false);
+
+  // 6. Push Notifications (start clean, no unsolicited toasts)
+  const [notifications, setNotifications] = useState<PushNotification[]>([]);
+
+  // Selected Hammer Reference
+  const selectedHammer = DEFAULT_HAMMERS.find((h) => h.id === profile.selectedHammerId) || DEFAULT_HAMMERS[0];
+
+  // Save profile changes automatically
+  const handleUpdateProfile = useCallback((updated: UserProfile) => {
+    setProfile(updated);
+    storageService.saveProfile(updated);
+  }, []);
+
+  // Update Soundtrack & Audio Preferences
+  useEffect(() => {
+    sfx.setVolume(profile.settings.soundVolume);
+    dynamicSoundtrack.setVolume(profile.settings.musicVolume);
+  }, [profile.settings.soundVolume, profile.settings.musicVolume]);
+
+  // Sync Dynamic Soundtrack in real-time with Game State
+  useEffect(() => {
+    if (gameState === 'playing') {
+      dynamicSoundtrack.start();
+      dynamicSoundtrack.updateGameState(timeRemaining, 60, combo, frenzyActive);
+    } else {
+      dynamicSoundtrack.stop();
+    }
+  }, [gameState, timeRemaining, combo, frenzyActive]);
+
+  // Periodic In-Game Powerup Timer Ticker
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+
+    const interval = setInterval(() => {
+      setActivePowerups((prev) => {
+        const next: Record<string, number> = {};
+        let hasChanges = false;
+        Object.entries(prev).forEach(([id, secs]) => {
+          const s = secs as number;
+          if (s > 1) {
+            next[id] = s - 1;
+            hasChanges = true;
+          } else {
+            hasChanges = true;
+            if (id === 'golden_frenzy') setFrenzyActive(false);
+          }
+        });
+        return hasChanges ? next : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState]);
+
+  // Cleanup Floating Texts
+  useEffect(() => {
+    if (floatingTexts.length === 0) return;
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      setFloatingTexts((prev) => prev.filter((ft) => now - ft.createdAt < ft.duration));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [floatingTexts]);
+
+  // WebSocket Multiplayer Event Subscriptions
+  useEffect(() => {
+    const unsub = multiplayerClient.subscribe((type, data) => {
+      if (type === 'room:update') {
+        setMpRoom(data.room);
+      } else if (type === 'game:mole_spawned') {
+        if (data.mole?.type) {
+          sfx.playMoleSpawn(data.mole.type);
+        }
+        setMoles((prev) => {
+          if (prev.some((m) => m.id === data.mole.id)) return prev;
+          return [...prev, data.mole];
+        });
+      } else if (type === 'game:mole_despawned') {
+        setMoles((prev) => prev.filter((m) => m.id !== data.moleId));
+      } else if (type === 'player:score_update') {
+        // If it was another player hitting the mole
+        if (data.moleId) {
+          setMoles((prev) =>
+            prev.map((m) => (m.id === data.moleId ? { ...m, state: 'hit' } : m))
+          );
+        }
+      } else if (type === 'game:tick') {
+        setTimeRemaining(data.timeRemaining);
+      } else if (type === 'game:attack_received') {
+        if (data.targetPlayerId === profile.id) {
+          sfx.playFrost();
+          setMpAttacks((prev) => [
+            ...prev,
+            { type: data.attackType, expiresAt: Date.now() + 4500 },
+          ]);
+        }
+      } else if (type === 'game:over') {
+        setGameState('gameover');
+        if (data.players) {
+          setMpRoom((prev) => (prev ? { ...prev, players: data.players } : prev));
+        }
+        // Check if player won
+        const myPlayer = data.players?.[profile.id];
+        const opponent = Object.values(data.players || {}).find((p: any) => p.id !== profile.id) as any;
+        const won = Boolean(myPlayer && opponent && myPlayer.score > opponent.score);
+        setIsMultiplayerWinRound(won);
+        if (score > (profile.highScore || 0) && score > 0) {
+          setIsNewHighScoreRound(true);
+        }
+        if (won) {
+          handleUpdateProfile({
+            ...profile,
+            stats: {
+              ...profile.stats,
+              duelsPlayed: profile.stats.duelsPlayed + 1,
+              duelsWon: profile.stats.duelsWon + 1,
+            },
+          });
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [profile, handleUpdateProfile]);
+
+  // Rare, Randomized Kitchen Disaster Hazard System
+  // Evaluates periodically mid-match to trigger a thrilling, high-reaction event
+  useEffect(() => {
+    if (gameState !== 'playing' || gameMode === 'multiplayer') return;
+
+    const checkInterval = setInterval(() => {
+      if (kitchenDisasterActive) return;
+      if (timeRemaining < 12 || timeRemaining > 48) return;
+
+      const now = Date.now();
+      if (now < disasterCooldownRef.current) return;
+
+      // ~20% probability per check mid-match
+      if (Math.random() < 0.20) {
+        disasterCooldownRef.current = now + 45000;
+        triggerKitchenDisaster();
+      }
+    }, 3500);
+
+    return () => clearInterval(checkInterval);
+  }, [gameState, gameMode, kitchenDisasterActive, timeRemaining, triggerKitchenDisaster]);
+
+  // SINGLE-PLAYER SPAWN & ROUND LOOP
+  useEffect(() => {
+    if (gameState !== 'playing' || gameMode === 'multiplayer') return;
+
+    // Round countdown ticker (60s)
+    const clockInterval = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(clockInterval);
+          finishSoloGame();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Mole spawn interval & capacity
+    // In Kitchen Disaster: spawn rate accelerates dramatically (260ms vs 700ms), max active moles surges to 7
+    const spawnDelay = kitchenDisasterActive ? 260 : (frenzyActive ? 380 : 700);
+    const maxActiveMoles = kitchenDisasterActive ? 7 : (frenzyActive ? 6 : 4);
+
+    const spawnInterval = setInterval(() => {
+      setMoles((prevMoles) => {
+        // Limit active moles
+        if (prevMoles.length >= maxActiveMoles) return prevMoles;
+
+        // Choose random available hole index
+        const occupied = new Set(prevMoles.map((m) => m.holeIndex));
+        const freeHoles = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter((h) => !occupied.has(h));
+        if (freeHoles.length === 0) return prevMoles;
+
+        const holeIndex = freeHoles[Math.floor(Math.random() * freeHoles.length)];
+        const isFrenzy = frenzyActive;
+
+        // Mole Type Selection with distinct characteristics
+        let type: MoleData['type'] = 'standard';
+        let health = 1;
+        let points = 100;
+        let coins = 5;
+        let speed = 1.0;
+        let pattern: MolePattern = 'normal';
+
+        if (isFrenzy) {
+          type = 'golden';
+          points = 350;
+          coins = 25;
+          speed = 1.4;
+          pattern = 'spiral_golden';
+        } else {
+          const rand = Math.random();
+          if (rand < 0.28) {
+            type = 'standard';
+            health = 1;
+            points = 100;
+            coins = 5;
+            speed = 1.0;
+            pattern = 'normal';
+          } else if (rand < 0.44) {
+            // Fast Mole: lightning fast peek, high score, twitch pattern
+            type = 'fast';
+            health = 1;
+            points = 220;
+            coins = 15;
+            speed = 1.8;
+            pattern = 'lightning_fast';
+          } else if (rand < 0.58) {
+            // Tough Mole: 3 hit points, heavy armored helmet, great reward
+            type = 'tough';
+            health = 3;
+            points = 400;
+            coins = 30;
+            speed = 0.8;
+            pattern = 'heavy_armored';
+          } else if (rand < 0.70) {
+            // Golden Mole: high gold reward, spiral ascend
+            type = 'golden';
+            health = 1;
+            points = 300;
+            coins = 25;
+            speed = 1.3;
+            pattern = 'spiral_golden';
+          } else if (rand < 0.80) {
+            // Helmet Mole: 2 hit points, construction hardhat
+            type = 'helmet';
+            health = 2;
+            points = 250;
+            coins = 15;
+            speed = 1.0;
+            pattern = 'heavy_armored';
+          } else if (rand < 0.88) {
+            // Bomb Mole: hazards to avoid
+            type = 'bomb';
+            health = 1;
+            points = -250;
+            coins = 0;
+            speed = 1.0;
+            pattern = 'fuse_burn';
+          } else if (rand < 0.93) {
+            // Frost Mole: slows time / adds +4s clock
+            type = 'frost';
+            health = 1;
+            points = 150;
+            coins = 10;
+            speed = 0.9;
+            pattern = 'frost_freeze';
+          } else if (rand < 0.96) {
+            // Phantom Mole: holographic phase shifts
+            type = 'phantom';
+            health = 1;
+            points = 350;
+            coins = 25;
+            speed = 1.2;
+            pattern = 'phase_glitch';
+          } else if (rand < 0.985) {
+            // Rainbow Mole: activates Frenzy
+            type = 'rainbow';
+            health = 1;
+            points = 500;
+            coins = 50;
+            speed = 1.1;
+            pattern = 'prismatic_levitate';
+          } else {
+            // Boss Mole: 5 hit points, giant size, massive reward
+            type = 'boss';
+            health = 5;
+            points = 1000;
+            coins = 100;
+            speed = 0.7;
+            pattern = 'boss_slam';
+          }
+        }
+
+        // Duration is tailored per mole type & scales with time remaining
+        const baseDurationMap: Record<string, number> = {
+          fast: 850,
+          golden: 1150,
+          phantom: 1200,
+          rainbow: 1350,
+          standard: 1500,
+          helmet: 1700,
+          frost: 1600,
+          bomb: 1450,
+          tough: 2300,
+          boss: 3400,
+        };
+
+        const baseDur = baseDurationMap[type] || 1500;
+        const timeDecay = (60 - timeRemaining) * 8;
+        let duration = Math.max(type === 'fast' ? 650 : 950, baseDur - timeDecay);
+
+        // Accelerated gameplay during Kitchen Disaster to challenge reflexes
+        if (kitchenDisasterActive) {
+          duration = Math.max(460, Math.round(duration * 0.65));
+          speed = speed * 1.35;
+          points = Math.round(points * 1.25); // +25% bonus points during disaster
+        }
+
+        const newMole: MoleData = {
+          id: `solo_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          holeIndex,
+          type,
+          health,
+          maxHealth: health,
+          spawnTime: Date.now(),
+          duration,
+          state: 'idle',
+          points,
+          coins,
+          speed,
+          pattern,
+        };
+
+        // Trigger unique audio cue for this mole type upon emerging
+        sfx.playMoleSpawn(type);
+
+        // Auto remove when duration expires
+        setTimeout(() => {
+          setMoles((curr) => curr.filter((m) => m.id !== newMole.id));
+        }, duration + 50);
+
+        return [...prevMoles, newMole];
+      });
+    }, spawnDelay);
+
+    return () => {
+      clearInterval(clockInterval);
+      clearInterval(spawnInterval);
+    };
+  }, [gameState, gameMode, frenzyActive, kitchenDisasterActive, timeRemaining]);
+
+  // Finish solo game
+  const finishSoloGame = () => {
+    setKitchenDisasterActive(false);
+    setDisasterTimeRemaining(0);
+    setGameState('gameover');
+    const coinsEarned = Math.round(molesHit * 3 + goldenHit * 20 + score * 0.02);
+    const xpEarned = Math.round(score * 0.05 + maxCombo * 10);
+    const isNewRecord = score > (profile.highScore || 0) && score > 0;
+    setIsNewHighScoreRound(isNewRecord);
+    setIsMultiplayerWinRound(false);
+    const newHighScore = Math.max(profile.highScore, score);
+
+    // Update challenges progress
+    const updatedChallenges = profile.challenges.map((c) => {
+      let add = 0;
+      if (c.type === 'moles_hit') add = molesHit;
+      if (c.type === 'golden_hit') add = goldenHit;
+      if (c.type === 'combo_streak') add = maxCombo >= c.target ? c.target : 0;
+      return { ...c, current: Math.min(c.target, c.current + add) };
+    });
+
+    handleUpdateProfile({
+      ...profile,
+      coins: profile.coins + coinsEarned,
+      xp: profile.xp + xpEarned,
+      level: Math.floor((profile.xp + xpEarned) / 500) + 1,
+      highScore: newHighScore,
+      stats: {
+        ...profile.stats,
+        totalMolesHit: profile.stats.totalMolesHit + molesHit,
+        totalGoldenHit: profile.stats.totalGoldenHit + goldenHit,
+        totalBombsHit: profile.stats.totalBombsHit + bombsHit,
+        highestCombo: Math.max(profile.stats.highestCombo, maxCombo),
+        totalScore: profile.stats.totalScore + score,
+      },
+      challenges: updatedChallenges,
+    });
+
+    storageService.submitScore({
+      userId: profile.id,
+      name: profile.name,
+      avatar: profile.avatar,
+      score,
+      combo: maxCombo,
+    });
+  };
+
+  // Start Solo Arcade Game
+  const handleStartArcade = (mode: GameMode = 'arcade') => {
+    sfx.playButtonClick();
+    setIsNewHighScoreRound(false);
+    setIsMultiplayerWinRound(false);
+    setGameMode(mode);
+    setScore(0);
+    setCombo(0);
+    setMaxCombo(0);
+    setMolesHit(0);
+    setGoldenHit(0);
+    setBombsHit(0);
+    setTimeRemaining(60);
+    setFrenzyActive(false);
+    setKitchenDisasterActive(false);
+    setDisasterTimeRemaining(0);
+    disasterCooldownRef.current = 0;
+    setActivePowerups({});
+    setMoles([]);
+    setFloatingTexts([]);
+    setGameState('playing');
+  };
+
+  // Handle User Whack on 3D Stage
+  const handleHitHole = (holeIndex: number, clientX: number, clientY: number) => {
+    if (gameState !== 'playing') return;
+
+    // Find mole at this hole
+    const mole = moles.find((m) => m.holeIndex === holeIndex && m.state !== 'hit' && m.state !== 'exploded');
+
+    if (mole) {
+      const isCrit = Math.random() < selectedHammer.critChance;
+      const damage = selectedHammer.damage;
+
+      // Handle Bomb Mole
+      if (mole.type === 'bomb') {
+        const hasShield = (activePowerups['bomb_shield'] || 0) > 0;
+        if (hasShield) {
+          // Defended by shield!
+          addFloatingText('SHIELD BLOCKED!', clientX, clientY, '#10b981', 1.2);
+          setActivePowerups((prev) => ({ ...prev, bomb_shield: Math.max(0, (prev['bomb_shield'] || 0) - 1) }));
+          triggerScreenShake(7.0);
+        } else {
+          setScore((s) => Math.max(0, s - 250));
+          setCombo(0);
+          setBombsHit((b) => b + 1);
+          addFloatingText('-250 💥 BOMB!', clientX, clientY, '#ef4444', 1.4);
+          triggerScreenShake(15.0);
+        }
+        mole.state = 'exploded';
+        setParticleExplosionTrigger({
+          x: clientX,
+          y: clientY,
+          type: 'bomb',
+          isCrit: false,
+          isDefeated: true,
+          timestamp: Date.now(),
+        });
+      } else {
+        // Successful Whack!
+        mole.health -= damage;
+        const isDefeated = mole.health <= 0;
+
+        setParticleExplosionTrigger({
+          x: clientX,
+          y: clientY,
+          type: mole.type,
+          isCrit,
+          isDefeated,
+          timestamp: Date.now(),
+        });
+
+        // Calculate screen-shake intensity scaling based on mole type
+        let hitShakeIntensity = 4.5;
+        switch (mole.type) {
+          case 'boss':
+            hitShakeIntensity = 16.0; // Earth-shattering boss slam
+            break;
+          case 'tough':
+            hitShakeIntensity = 10.5; // Heavy armored stone mole
+            break;
+          case 'golden':
+            hitShakeIntensity = 8.5;  // Rare Golden Mole impact
+            break;
+          case 'rainbow':
+            hitShakeIntensity = 9.0;  // Rainbow Frenzy Mole shockwave
+            break;
+          case 'helmet':
+            hitShakeIntensity = 7.5;  // Hardhat crushing blow
+            break;
+          case 'frost':
+            hitShakeIntensity = 6.5;  // Crisp ice freeze shatter
+            break;
+          case 'phantom':
+            hitShakeIntensity = 6.0;  // Ethereal phase pop
+            break;
+          case 'fast':
+            hitShakeIntensity = 5.5;  // Snappy quick-draw flick
+            break;
+          case 'standard':
+          default:
+            hitShakeIntensity = 4.5;  // Standard solid whack
+            break;
+        }
+
+        // Critical hits amplify tactile shockwave (+40%)
+        if (isCrit) {
+          hitShakeIntensity *= 1.4;
+        }
+
+        // Defeating / finishing blow adds extra tactile punch (+25%)
+        if (isDefeated) {
+          hitShakeIntensity *= 1.25;
+        }
+
+        // Frenzy mode tactile amplification (+15%)
+        if (frenzyActive || (activePowerups['golden_frenzy'] || 0) > 0) {
+          hitShakeIntensity *= 1.15;
+        }
+
+        // Trigger tactile screen-shake on every successful mole whack
+        triggerScreenShake(hitShakeIntensity);
+
+        if (isDefeated) {
+          mole.state = 'hit';
+          setMolesHit((m) => m + 1);
+
+          // Type-specific perks & celebration text
+          if (mole.type === 'golden') {
+            setGoldenHit((g) => g + 1);
+            addFloatingText('✨ GOLDEN! +300', clientX, clientY - 20, '#fde047', 1.3, true);
+          } else if (mole.type === 'fast') {
+            addFloatingText('⚡ SPEED SHOT! +220', clientX, clientY - 20, '#38bdf8', 1.25, true);
+          } else if (mole.type === 'tough') {
+            addFloatingText('🛡️ ARMOR CRUSHED! +400', clientX, clientY - 20, '#94a3b8', 1.35, true);
+          } else if (mole.type === 'boss') {
+            addFloatingText('👑 BOSS SLAIN! +1000', clientX, clientY - 30, '#ec4899', 1.6, true);
+          } else if (mole.type === 'phantom') {
+            addFloatingText('👻 PHANTOM PURGED! +350', clientX, clientY - 20, '#c084fc', 1.3, true);
+          } else if (mole.type === 'frost') {
+            setTimeRemaining((t) => Math.min(60, t + 4));
+            addFloatingText('❄️ +4s TIME CHILL!', clientX, clientY - 20, '#38bdf8', 1.25, true);
+          } else if (mole.type === 'rainbow') {
+            setFrenzyActive(true);
+            setActivePowerups((prev) => ({ ...prev, golden_frenzy: 6 }));
+            addFloatingText('🌟 RAINBOW FRENZY!', clientX, clientY - 25, '#f59e0b', 1.5, true);
+          } else if (mole.type === 'helmet') {
+            addFloatingText('🔨 HARDHAT BROKEN! +250', clientX, clientY - 20, '#f59e0b', 1.2, true);
+          }
+        } else {
+          // Non-lethal armored hit feedback
+          addFloatingText(`💥 HIT! (${mole.health}/${mole.maxHealth} HP)`, clientX, clientY - 15, '#fbbf24', 1.1);
+        }
+
+        // Score calculation with multiplier & powerups
+        const has2x = (activePowerups['double_points'] || 0) > 0;
+        const comboMult = 1 + combo * 0.15;
+        const hammerBonus = selectedHammer.scoreBonus || 1.0;
+        const critMult = isCrit ? 1.75 : 1.0;
+        const basePts = isDefeated ? mole.points : Math.round(mole.points * 0.35);
+        const pointsEarned = Math.round(basePts * hammerBonus * comboMult * critMult * (has2x ? 2 : 1));
+
+        setScore((s) => s + pointsEarned);
+        const nextCombo = combo + 1;
+        setCombo(nextCombo);
+        setMaxCombo((m) => Math.max(m, nextCombo));
+
+        sfx.playComboStreak(nextCombo);
+        dynamicSoundtrack.triggerImpactDucking();
+
+        // Spawn 3D Score Bubble
+        const label = isCrit ? `+${pointsEarned} CRIT!` : `+${pointsEarned}`;
+        addFloatingText(label, clientX, clientY, isCrit ? '#facc15' : '#ffffff', isCrit ? 1.4 : 1.0, isCrit);
+      }
+
+      // If in multiplayer, notify server
+      if (gameMode === 'multiplayer') {
+        multiplayerClient.hitMole(mole.id, holeIndex, isCrit, damage);
+      }
+    } else {
+      // Miss Whack!
+      if (combo > 0) {
+        setCombo(0);
+        addFloatingText('MISS', clientX, clientY, '#9ca3af', 0.85);
+        if (gameMode === 'multiplayer') {
+          multiplayerClient.sendMiss();
+        }
+      }
+    }
+  };
+
+  // Add 3D / 2D Floating Text
+  const addFloatingText = (text: string, x: number, y: number, color: string, scale = 1, isCrit = false) => {
+    const newText: FloatingText = {
+      id: 'ft_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      text,
+      x,
+      y,
+      color,
+      scale,
+      createdAt: Date.now(),
+      duration: 750,
+      isCrit,
+    };
+    setFloatingTexts((prev) => [...prev, newText]);
+  };
+
+  // Use In-Game Powerup
+  const handleUsePowerup = (powerupId: string) => {
+    const currentStock = profile.powerups[powerupId] || 0;
+    if (currentStock <= 0 || activePowerups[powerupId]) return;
+
+    sfx.playPowerup();
+    handleUpdateProfile({
+      ...profile,
+      powerups: {
+        ...profile.powerups,
+        [powerupId]: currentStock - 1,
+      },
+    });
+
+    if (powerupId === 'time_freeze') {
+      setTimeRemaining((t) => Math.min(60, t + 5));
+      setActivePowerups((prev) => ({ ...prev, time_freeze: 5 }));
+    } else if (powerupId === 'golden_frenzy') {
+      setFrenzyActive(true);
+      setActivePowerups((prev) => ({ ...prev, golden_frenzy: 6 }));
+    } else if (powerupId === 'bomb_shield') {
+      setActivePowerups((prev) => ({ ...prev, bomb_shield: 30 }));
+    } else if (powerupId === 'double_points') {
+      setActivePowerups((prev) => ({ ...prev, double_points: 10 }));
+    } else if (powerupId === 'pizza_oven') {
+      setActivePowerups((prev) => ({ ...prev, pizza_oven: 5 }));
+      sfx.playPizzaOvenRoar();
+      addFloatingText('🔥 ¡HORNO DE PIZZA ABRASADOR! (5s)', window.innerWidth / 2, window.innerHeight * 0.35, '#ea580c', 1.5, true);
+    }
+  };
+
+  // Pizza Oven Continuous Heat Zone Auto-Burn Loop (5s duration)
+  useEffect(() => {
+    if (gameState !== 'playing' || !activePowerups['pizza_oven']) return;
+
+    const burnInterval = setInterval(() => {
+      setMoles((prevMoles) => {
+        let anyBurned = false;
+        const updated = prevMoles.map((mole) => {
+          if (mole.state === 'hit' || mole.state === 'exploded') return mole;
+
+          anyBurned = true;
+          const holeCol = mole.holeIndex % 3;
+          const holeRow = Math.floor(mole.holeIndex / 3);
+          const screenX = window.innerWidth * (0.35 + holeCol * 0.15);
+          const screenY = window.innerHeight * (0.35 + holeRow * 0.15);
+
+          if (mole.type === 'bomb') {
+            addFloatingText('🔥 ¡BOMBA VAPORIZADA!', screenX, screenY, '#ea580c', 1.3, true);
+            sfx.playFireBurn();
+            return { ...mole, state: 'exploded' as const, health: 0 };
+          }
+
+          setMolesHit((m) => m + 1);
+          if (mole.type === 'golden') {
+            setGoldenHit((g) => g + 1);
+          }
+
+          const has2x = (activePowerups['double_points'] || 0) > 0;
+          const comboMult = 1 + combo * 0.15;
+          const hammerBonus = selectedHammer.scoreBonus || 1.0;
+          const pointsEarned = Math.round(mole.points * 1.5 * hammerBonus * comboMult * (has2x ? 2 : 1));
+
+          setScore((s) => s + pointsEarned);
+          setCombo((c) => {
+            const nextC = c + 1;
+            setMaxCombo((m) => Math.max(m, nextC));
+            sfx.playComboStreak(nextC);
+            return nextC;
+          });
+
+          sfx.playFireBurn();
+          addFloatingText(`🔥 ¡HORNEADO! +${pointsEarned}`, screenX, screenY - 20, '#ea580c', 1.35, true);
+
+          if (gameMode === 'multiplayer') {
+            multiplayerClient.hitMole(mole.id, mole.holeIndex, true, 99);
+          }
+
+          return { ...mole, state: 'hit' as const, health: 0 };
+        });
+
+        if (anyBurned) {
+          triggerScreenShake(7.5);
+        }
+        return anyBurned ? updated : prevMoles;
+      });
+    }, 120);
+
+    return () => clearInterval(burnInterval);
+  }, [gameState, activePowerups['pizza_oven'], combo, selectedHammer, gameMode, triggerScreenShake]);
+
+  return (
+    <div
+      id="app_root"
+      className="relative w-screen h-screen overflow-hidden flex flex-col bg-slate-900 text-slate-100 font-sans select-none"
+    >
+      {/* Immersive UI Ambient Gradient Layer */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-orange-900/10 pointer-events-none z-0"></div>
+
+      {/* 1. TOP GLOBAL NAVIGATION & STATUS BAR (Visible only in Menu Hub) */}
+      {gameState === 'menu' && (
+        <header className="relative z-30 flex items-center justify-between px-4 md:px-6 py-3 bg-slate-900/85 backdrop-blur-xl border-b border-white/10 shadow-xl">
+          {/* Brand, Avatar & Level Progress */}
+          <div className="flex items-center space-x-3 md:space-x-4">
+            <div
+              onClick={() => {
+                sfx.playButtonClick();
+                setActiveModal('avatar');
+              }}
+              className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gradient-to-tr from-orange-500 to-yellow-300 border-2 border-white/20 shadow-[0_0_15px_rgba(249,115,22,0.4)] flex items-center justify-center text-lg md:text-xl font-black text-slate-900 cursor-pointer hover:scale-105 transition-transform"
+              title="Edit Avatar"
+            >
+              {profile.name ? profile.name.slice(0, 2).toUpperCase() : 'WM'}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm md:text-base font-bold leading-tight text-white">{profile.name}</h2>
+                <div className="hidden sm:flex items-center text-[10px] text-orange-400 space-x-1.5">
+                  <span className="bg-slate-800 px-2 py-0.5 rounded font-black tracking-wider border border-white/5">
+                    LVL {profile.level}
+                  </span>
+                  <span className="text-slate-600">•</span>
+                  <span className="uppercase tracking-wider font-semibold text-slate-400">{profile.avatar.title}</span>
+                </div>
+              </div>
+              <div className="sm:hidden flex items-center text-[10px] text-orange-400 gap-1.5 mt-0.5">
+                <span className="bg-slate-800 px-1.5 py-0.2 rounded font-black">LVL {profile.level}</span>
+                <span className="text-slate-400 truncate max-w-[80px]">{profile.avatar.title}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Center/Right: Currency & Stats Card in Immersive UI Style */}
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="flex items-center bg-slate-800/80 backdrop-blur-md px-3 sm:px-5 py-1.5 sm:py-2 rounded-2xl border border-white/10 shadow-lg">
+              {/* Coins / Credits */}
+              <div className="flex flex-col items-center px-2 sm:px-4 border-r border-slate-700/80">
+                <span className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-tighter">Credits</span>
+                <span className="text-sm sm:text-lg font-black text-yellow-400 font-mono">
+                  {profile.coins.toLocaleString()}
+                </span>
+              </div>
+
+              {/* Gems / Global Rank */}
+              <div className="flex flex-col items-center px-2 sm:px-4">
+                <span className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-tighter">Rank</span>
+                <span className="text-sm sm:text-lg font-black text-indigo-400 font-mono">
+                  #{Math.max(1, 1500 - profile.level * 18 - Math.floor(profile.highScore / 200))}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Action Buttons */}
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <button
+                id="nav_btn_shop"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  setActiveModal('shop');
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(245,158,11,0.3)] transition"
+                title="Armory & Shop"
+              >
+                <ShoppingBag className="w-4 h-4" />
+              </button>
+
+              <button
+                id="nav_btn_avatar"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  setActiveModal('avatar');
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(6,182,212,0.3)] transition"
+                title="Avatar Customizer"
+              >
+                <User className="w-4 h-4" />
+              </button>
+
+              <button
+                id="nav_btn_codex"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  setActiveModal('codex');
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(52,211,153,0.3)] transition"
+                title="Mole Field Guide & Codex"
+              >
+                <Zap className="w-4 h-4" />
+              </button>
+
+              <button
+                id="nav_btn_leaderboard"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  setActiveModal('leaderboard');
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-yellow-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(234,179,8,0.3)] transition"
+                title="Leaderboards"
+              >
+                <Trophy className="w-4 h-4" />
+              </button>
+
+              <button
+                id="nav_btn_events"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  setActiveModal('events');
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-purple-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition"
+                title="Events & Challenges"
+              >
+                <Calendar className="w-4 h-4" />
+              </button>
+
+              <button
+                id="nav_btn_settings"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  setActiveModal('settings');
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center border border-white/10 shadow-sm transition"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* 2. MAIN 3D GAME STAGE VIEWPORT (With Dynamic Tactile Screen Shake) */}
+      <main
+        id="game_stage_viewport"
+        className={`relative flex-1 w-full h-full overflow-hidden z-10 ${screenShakeClass}`}
+        style={{
+          transform:
+            screenShake.x !== 0 || screenShake.y !== 0
+              ? `translate3d(${screenShake.x}px, ${screenShake.y}px, 0) rotate(${screenShake.rotate}deg)`
+              : undefined,
+          willChange: 'transform',
+        }}
+      >
+        {/* 3D Three.js WebGL Scene */}
+        <MoleScene3D
+          moles={moles}
+          selectedHammer={selectedHammer}
+          theme={profile.settings.theme}
+          frenzyActive={frenzyActive}
+          pizzaOvenActive={Boolean(activePowerups['pizza_oven'])}
+          kitchenDisasterActive={kitchenDisasterActive}
+          disasterTimeRemaining={disasterTimeRemaining}
+          onHitHole={handleHitHole}
+          floatingTexts={floatingTexts}
+          screenShakeTrigger={screenShakeTrigger}
+          particleExplosionTrigger={particleExplosionTrigger}
+        />
+
+        {/* IN-GAME HUD OVERLAY (When Playing) */}
+        {gameState === 'playing' && (
+          <GameHUD
+            score={score}
+            combo={combo}
+            maxCombo={maxCombo}
+            timeRemaining={timeRemaining}
+            gameDuration={60}
+            mode={gameMode}
+            profile={profile}
+            activePowerups={activePowerups}
+            sessionIngredients={sessionIngredients}
+            kitchenDisasterActive={kitchenDisasterActive}
+            disasterTimeRemaining={disasterTimeRemaining}
+            onUsePowerup={handleUsePowerup}
+            onPause={() => setGameState('paused')}
+            isMuted={profile.settings.soundVolume === 0 && profile.settings.musicVolume === 0}
+            onToggleMute={() => {
+              const newVol = profile.settings.soundVolume > 0 ? 0 : 0.8;
+              handleUpdateProfile({
+                ...profile,
+                settings: { ...profile.settings, soundVolume: newVol, musicVolume: newVol * 0.75 },
+              });
+            }}
+          />
+        )}
+
+        {/* MULTIPLAYER IN-MATCH OVERLAY (Split Score Bar, Attacks, Live Chat) */}
+        {gameState === 'playing' && gameMode === 'multiplayer' && mpRoom && (
+          <MultiplayerMatchOverlay
+            room={mpRoom}
+            profile={profile}
+            activeAttacks={mpAttacks}
+          />
+        )}
+
+        {/* MAIN MENU HUB (Immersive UI Hub Layout) */}
+        {gameState === 'menu' && (
+          <div className="absolute inset-0 z-20 flex flex-col justify-between p-4 md:p-6 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto">
+            {/* Quick Live Info Sidebar / Top Badges (Responsive layout) */}
+            <div className="grid grid-cols-12 gap-4 flex-1 items-center min-h-0">
+              {/* Left Side: Live Activity & Event Card (Visible on md+) */}
+              <aside className="hidden lg:flex col-span-3 flex-col space-y-4 max-h-[480px]">
+                {/* Live Kitchen Feed / Activity Feed */}
+                <div className="flex-1 bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 flex flex-col shadow-xl">
+                  <h3 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-[0.2em] flex items-center justify-between">
+                    <span>Cocina en Vivo</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  </h3>
+                  <div className="flex-1 overflow-hidden flex flex-col space-y-2.5 text-xs">
+                    <div>
+                      <span className="text-amber-400 font-bold">Chef Luigi:</span>{' '}
+                      <span className="text-slate-300">¡El horno de leña está a 450°F! ¡Alerta con los topos!</span>
+                    </div>
+                    <div>
+                      <span className="text-orange-400 font-bold">Ayudante Mario:</span>{' '}
+                      <span className="text-slate-300">¡Recolecta ingredientes para activar los Bonos de Chef!</span>
+                    </div>
+                    <div className="opacity-60 text-[11px]">
+                      <span className="text-slate-500">[Sistema]: Despensa y recetas italianas listas.</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sfx.playButtonClick();
+                      setActiveModal('pizza_codex');
+                    }}
+                    className="mt-3 h-9 bg-slate-900/80 hover:bg-slate-900 rounded-xl border border-white/5 flex items-center justify-center px-3 text-xs text-amber-300 font-semibold transition"
+                  >
+                    Abrir Recetario de Pizzas →
+                  </button>
+                </div>
+
+                {/* Special Event Mini Banner */}
+                <div
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('events');
+                  }}
+                  className="bg-indigo-900/40 hover:bg-indigo-900/60 rounded-3xl border border-indigo-500/20 p-4 cursor-pointer transition shadow-xl"
+                >
+                  <h3 className="text-xs font-black uppercase text-indigo-300 mb-1.5 tracking-wider">Active Event</h3>
+                  <div className="text-sm font-bold text-white mb-0.5">Lunar Festival Frenzy</div>
+                  <div className="text-[11px] text-indigo-200 mb-2">Collect Golden Moles for 2X credits!</div>
+                  <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-gradient-to-r from-indigo-500 to-amber-400 h-full w-2/3"></div>
+                  </div>
+                </div>
+              </aside>
+
+              {/* Center: Hero Title, Equipped Hammer & Main Action Controls */}
+              <section className="col-span-12 lg:col-span-6 flex flex-col items-center justify-center text-center px-2">
+                <div className="max-w-md w-full flex flex-col items-center">
+                  {/* Chef Idle Character in Main Menu with Watch Check, Brow Wipe & Interactive Reactions */}
+                  <ChefIdleCharacter className="mb-2" />
+
+                  <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-none mb-2 font-['Outfit']">
+                    Panic at the Pizzeria
+                  </h1>
+                  <p className="text-xs md:text-sm text-slate-300 mb-6 max-w-sm">
+                    ¡Defiende la cocina del Chef de la banda de topos ladrones de pizza con rodillos, palas y cortadores láser en 3D!
+                  </p>
+
+                  {/* Equipped Weapon Card */}
+                  <div className="flex items-center justify-between w-full max-w-sm p-3.5 bg-slate-800/70 backdrop-blur-md rounded-2xl border border-white/10 shadow-lg mb-6 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-xl">
+                        🥖
+                      </div>
+                      <div className="text-left">
+                        <span className="font-bold text-white text-sm block">{selectedHammer.name}</span>
+                        <span className="text-[10px] text-amber-400 font-black tracking-wider uppercase">
+                          Utensilio del Chef • {selectedHammer.specialEffect.replace('_', ' ')}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveModal('shop')}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl border border-white/10 transition"
+                    >
+                      Cocina
+                    </button>
+                  </div>
+
+                  {/* Immersive UI Chunky Tactile Play Button */}
+                  <div className="w-full max-w-sm sm:max-w-md flex justify-center">
+                    <button
+                      id="btn_play_arcade"
+                      onClick={() => handleStartArcade('arcade')}
+                      className="w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3"
+                    >
+                      <Play className="w-6 h-6 fill-current" />
+                      ¡Defender Cocina!
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* Right Side: Quick Shop & Achievements Preview (Visible on lg+) */}
+              <aside className="hidden lg:flex col-span-3 flex-col space-y-4 max-h-[480px]">
+                {/* Shop Teaser */}
+                <div className="bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 shadow-xl">
+                  <h3 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center justify-between">
+                    <span>Featured Upgrades</span>
+                    <button onClick={() => setActiveModal('shop')} className="text-orange-400 hover:underline text-[10px]">
+                      View All
+                    </button>
+                  </h3>
+                  <div className="space-y-2">
+                    <div
+                      onClick={() => setActiveModal('shop')}
+                      className="flex items-center p-2 bg-slate-900/60 rounded-xl border border-white/5 cursor-pointer hover:border-white/20 transition"
+                    >
+                      <div className="w-9 h-9 bg-amber-500/20 rounded-lg flex items-center justify-center mr-2.5 text-amber-400 font-bold text-sm">
+                        ⚡
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-xs font-bold text-white">Thunder Mallet</div>
+                        <div className="text-[10px] text-slate-400">+20% Area Dmg</div>
+                      </div>
+                      <div className="text-xs font-black text-orange-400">2.5K</div>
+                    </div>
+
+                    <div
+                      onClick={() => setActiveModal('shop')}
+                      className="flex items-center p-2 bg-slate-900/60 rounded-xl border border-white/5 cursor-pointer hover:border-white/20 transition"
+                    >
+                      <div className="w-9 h-9 bg-cyan-500/20 rounded-lg flex items-center justify-center mr-2.5 text-cyan-400 font-bold text-sm">
+                        ❄️
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-xs font-bold text-white">Time Freeze</div>
+                        <div className="text-[10px] text-slate-400">+5s Round Time</div>
+                      </div>
+                      <div className="text-xs font-black text-orange-400">1.2K</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Achievements / Bounty Teaser */}
+                <div className="flex-1 bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 flex flex-col shadow-xl">
+                  <h3 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center justify-between">
+                    <span>Weekly Bounty</span>
+                    <button onClick={() => setActiveModal('events')} className="text-indigo-400 hover:underline text-[10px]">
+                      Details
+                    </button>
+                  </h3>
+                  <div className="p-3 bg-slate-900/60 rounded-2xl border-l-4 border-amber-500">
+                    <div className="text-xs font-bold text-white uppercase">Speed Demon</div>
+                    <div className="text-[10px] text-slate-400 mb-1.5">Whack 50 moles in 60s</div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-black text-amber-400 uppercase">Reward: +750 Coins</span>
+                      <span className="text-slate-400 font-bold">+15 Gems</span>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        )}
+
+        {/* MULTIPLAYER LOBBY (Room creation, code sharing, quick matchmaking) */}
+        {gameState === 'multiplayer_lobby' && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md pointer-events-auto">
+            <MultiplayerLobby
+              profile={profile}
+              onBack={() => setGameState('menu')}
+              onGameStarted={(room) => {
+                setMpRoom(room);
+                setIsNewHighScoreRound(false);
+                setIsMultiplayerWinRound(false);
+                setGameMode('multiplayer');
+                setScore(0);
+                setCombo(0);
+                setMaxCombo(0);
+                setMolesHit(0);
+                setGoldenHit(0);
+                setBombsHit(0);
+                setTimeRemaining(60);
+                setFrenzyActive(false);
+                setMoles([]);
+                setFloatingTexts([]);
+                setGameState('playing');
+              }}
+            />
+          </div>
+        )}
+      </main>
+
+      {/* 3. IMMERSIVE UI FOOTER / TELEMETRY STATUS BAR */}
+      <footer className="relative z-30 flex justify-between items-center px-4 md:px-6 py-2 border-t border-white/5 bg-slate-900/90 backdrop-blur-md">
+        {/* Left: Cloud Sync Status & Version */}
+        <div className="flex items-center space-x-4 md:space-x-8 text-xs font-bold text-slate-400">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+            <span className="uppercase tracking-tighter text-[11px] text-slate-300">Cloud Sync Active</span>
+          </div>
+          <div className="hidden sm:inline-block uppercase tracking-tighter text-[11px] text-slate-500 font-mono">
+            v2.4.1 Build-77
+          </div>
+        </div>
+
+        {/* Right: Audio Synthesizer BPM Visualizer & Status Pills */}
+        <div className="flex items-center space-x-3 md:space-x-4">
+          {/* BPM Synth Equalizer Wave */}
+          <div className="flex items-center space-x-2 bg-slate-800/60 px-3 py-1 rounded-xl border border-white/5">
+            <span className="text-[9px] uppercase text-slate-400 font-black tracking-wider">
+              {gameState === 'playing' ? 'Synth BPM' : 'Audio Engine'}
+            </span>
+            <div className="flex space-x-0.5 h-3 items-end">
+              <div className={`w-1 bg-indigo-500 rounded-full transition-all duration-150 ${gameState === 'playing' ? 'h-[80%] animate-pulse' : 'h-[40%]'}`}></div>
+              <div className={`w-1 bg-indigo-500 rounded-full transition-all duration-150 ${gameState === 'playing' ? 'h-[100%] animate-ping' : 'h-[70%]'}`}></div>
+              <div className={`w-1 bg-indigo-500 rounded-full transition-all duration-150 ${gameState === 'playing' ? 'h-[50%]' : 'h-[30%]'}`}></div>
+              <div className={`w-1 bg-indigo-500 rounded-full transition-all duration-150 ${gameState === 'playing' ? 'h-[90%]' : 'h-[60%]'}`}></div>
+              <div className={`w-1 bg-indigo-500 rounded-full transition-all duration-150 ${gameState === 'playing' ? 'h-[60%]' : 'h-[40%]'}`}></div>
+            </div>
+          </div>
+
+          {/* Notifications / Mode Badges */}
+          <div className="flex space-x-1.5">
+            <button
+              onClick={() => setActiveModal('events')}
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-full border border-white/5 text-[10px] text-slate-300 font-black uppercase tracking-wider transition"
+            >
+              Alerts ({notifications.length})
+            </button>
+            <div className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/20 text-[10px] font-black uppercase tracking-wider">
+              3D Immersive
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* 3. MODALS & POPUPS */}
+
+      {/* Armory & Powerup Shop Modal */}
+      {activeModal === 'shop' && (
+        <ShopModal
+          profile={profile}
+          onClose={() => setActiveModal(null)}
+          onUpdateProfile={handleUpdateProfile}
+        />
+      )}
+
+      {/* Avatar Customizer Modal */}
+      {activeModal === 'avatar' && (
+        <AvatarCustomizer
+          profile={profile}
+          onClose={() => setActiveModal(null)}
+          onUpdateProfile={handleUpdateProfile}
+        />
+      )}
+
+      {/* Leaderboards & Friends Modal */}
+      {activeModal === 'leaderboard' && (
+        <LeaderboardModal
+          profile={profile}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Mole Field Guide & Species Codex Modal */}
+      {activeModal === 'codex' && (
+        <MoleCodexModal
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Events & Weekly Challenges Modal */}
+      {activeModal === 'events' && (
+        <EventsAndChallengesModal
+          profile={profile}
+          onClose={() => setActiveModal(null)}
+          onUpdateProfile={handleUpdateProfile}
+        />
+      )}
+
+      {/* Settings & In-Game Pause Modal */}
+      <PauseAndSettingsModal
+        profile={profile}
+        isOpen={activeModal === 'settings' || gameState === 'paused'}
+        isPaused={gameState === 'paused'}
+        onClose={() => {
+          if (gameState === 'paused') setGameState('playing');
+          setActiveModal(null);
+        }}
+        onResume={() => setGameState('playing')}
+        onRestart={() => handleStartArcade(gameMode)}
+        onQuitToMenu={() => {
+          setGameState('menu');
+          setActiveModal(null);
+        }}
+        onTriggerKitchenDisaster={() => {
+          triggerKitchenDisaster();
+          setGameState('playing');
+          setActiveModal(null);
+        }}
+        onTestParticleExplosion={(type) => {
+          const cx = typeof window !== 'undefined' ? window.innerWidth / 2 : 400;
+          const cy = typeof window !== 'undefined' ? window.innerHeight / 2 : 300;
+          setParticleExplosionTrigger({
+            x: cx,
+            y: cy,
+            type,
+            isCrit: true,
+            isDefeated: true,
+            timestamp: Date.now(),
+          });
+          triggerScreenShake(6.5);
+          sfx.playMoleSpawn(type);
+        }}
+        onUpdateProfile={handleUpdateProfile}
+      />
+
+      {/* Game Over / Victory Modal */}
+      {gameState === 'gameover' && (
+        <GameOverModal
+          score={score}
+          combo={combo}
+          maxCombo={maxCombo}
+          molesHit={molesHit}
+          goldenHit={goldenHit}
+          bombsHit={bombsHit}
+          mode={gameMode}
+          isNewHighScore={isNewHighScoreRound}
+          isMultiplayerWin={
+            isMultiplayerWinRound || (
+              gameMode === 'multiplayer' && mpRoom && mpRoom.players[profile.id]
+                ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).every((p) => p.id === profile.id || score > p.score)
+                : false
+            )
+          }
+          isMultiplayerTie={
+            gameMode === 'multiplayer' && mpRoom && mpRoom.players[profile.id]
+              ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).some((p) => p.id !== profile.id && score === p.score)
+              : false
+          }
+          opponentName={
+            gameMode === 'multiplayer' && mpRoom
+              ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).find((p) => p.id !== profile.id)?.name
+              : undefined
+          }
+          opponentScore={
+            gameMode === 'multiplayer' && mpRoom
+              ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).find((p) => p.id !== profile.id)?.score
+              : undefined
+          }
+          profile={profile}
+          onPlayAgain={() => {
+            if (gameMode === 'multiplayer') {
+              setGameState('multiplayer_lobby');
+            } else {
+              handleStartArcade(gameMode);
+            }
+          }}
+          onHome={() => setGameState('menu')}
+        />
+      )}
+
+      {/* Push Notifications Toast Manager - only in Menu state */}
+      {gameState === 'menu' && (
+        <PushNotificationsToast
+          notifications={notifications}
+          onDismiss={(id) => setNotifications((prev) => prev.filter((n) => n.id !== id))}
+          onOpenChallenges={() => setActiveModal('events')}
+        />
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Panic at the Pizzeria",
+  "description": "¡Pánico en la Pizzería! Juego donde el Chef defiende su cocina italiana y masa madre de una traviesa banda de topos ladrones de ingredientes usando rodillos, cortapizzas y palas de horno.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

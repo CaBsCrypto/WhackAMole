@@ -1,4 +1,4 @@
-﻿const API_BASE = 'https://spicycrust-api.alphadocere.cl/api/v1';
+const API_BASE = 'https://spicycrust-api.alphadocere.cl/api/v1';
 const GAME_KEY = 'b36b041d696f5b9c7595b6f6647cb2e7649c5b24d92808a33c3c9baea46a48df';
 const GAME_SLUG = 'smash-the-crust';
 
@@ -67,7 +67,7 @@ export async function getLeaderboard(limit = 10): Promise<SpicyCrustLeaderboardE
       { signal: AbortSignal.timeout(5000) }
     );
     const json = await res.json();
-    return json?.data?.leaderboard ?? [];
+    return json?.data?.ranking ?? json?.data?.leaderboard ?? [];
   } catch (e: any) {
     console.warn('[SpicyCrust] Leaderboard fallback:', e?.message || e);
     return [];

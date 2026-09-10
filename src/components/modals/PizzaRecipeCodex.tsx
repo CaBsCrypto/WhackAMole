@@ -173,14 +173,14 @@ export const PizzaRecipeCodex: React.FC<PizzaRecipeCodexProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight font-['Outfit']">
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide font-display">
                   Codex Culinario de Pizzas
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 font-body">
                   Progreso Culinario
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 font-body font-medium">
                 Recolecta ingredientes derrotando topos para desvelar recetas tradicionales y bonificaciones permanentes.
               </p>
             </div>
@@ -202,10 +202,11 @@ export const PizzaRecipeCodex: React.FC<PizzaRecipeCodexProps> = ({
                 sfx.playButtonClick();
                 onClose();
               }}
-              className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-white/10 transition"
+              aria-label="Cerrar ventana"
+              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
               title="Cerrar Codex"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </header>
@@ -363,7 +364,7 @@ export const PizzaRecipeCodex: React.FC<PizzaRecipeCodexProps> = ({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <h4
-                                className={`text-xs sm:text-sm font-bold truncate ${
+                                className={`text-xs sm:text-sm font-display font-bold truncate ${
                                   unlocked ? 'text-white' : 'text-slate-300'
                                 }`}
                               >
@@ -421,7 +422,7 @@ export const PizzaRecipeCodex: React.FC<PizzaRecipeCodexProps> = ({
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="text-xl sm:text-2xl font-black text-white font-['Outfit']">
+                          <h3 className="text-xl sm:text-2xl font-black text-white font-display">
                             {selectedRecipe.name}
                           </h3>
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -613,7 +614,7 @@ export const PizzaRecipeCodex: React.FC<PizzaRecipeCodexProps> = ({
             <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-6 bg-slate-950/20">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-black text-white font-['Outfit']">Despensa del Chef & Guía de Drops</h3>
+                  <h3 className="text-lg font-black text-white font-display">Despensa del Chef & Guía de Drops</h3>
                   <p className="text-xs text-slate-400">
                     Conoce qué especies de topos sueltan cada ingrediente gourmet y su probabilidad de botín.
                   </p>
@@ -732,7 +733,7 @@ export const PizzaRecipeCodex: React.FC<PizzaRecipeCodexProps> = ({
                 <span className="text-xs font-black text-amber-400 uppercase tracking-widest block">
                   ¡RECETA HORNEADA CON ÉXITO!
                 </span>
-                <h3 className="text-2xl font-black text-white font-['Outfit']">
+                <h3 className="text-2xl font-black text-white font-display">
                   {bakedCelebration.recipe.name}
                 </h3>
                 <span className="text-xs text-amber-200 italic font-serif">

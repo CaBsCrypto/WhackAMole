@@ -302,6 +302,8 @@ export const createDefaultProfile = (): UserProfile => {
       theme: 'garden',
       pushNotifications: true,
       showFps: false,
+      controlMode: 'classic',
+      cameraPipCollapsed: false,
     },
     challenges: DEFAULT_CHALLENGES,
     completedAchievements: [],

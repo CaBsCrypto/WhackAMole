@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 @layer utilities {
+  /* Typography Utility Classes */
+  .font-display {
+    font-family: 'Fredoka', cursive, sans-serif;
+  }
+  .font-body {
+    font-family: 'Outfit', sans-serif;
+  }
   /* Custom scrollbar hiding and custom slim scrollbar */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -9,6 +16,13 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+.font-display {
+  font-family: 'Fredoka', cursive, sans-serif;
+}
+.font-body {
+  font-family: 'Outfit', sans-serif;
 }
 
 @keyframes pulseGlow {

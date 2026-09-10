@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Zap, Sparkles, Snowflake, Shield, Flame, Check, Lock, ArrowUpCircle } from 'lucide-react';
+import { ShoppingBag, Zap, Sparkles, Snowflake, Shield, Flame, Check, Lock, ArrowUpCircle, X } from 'lucide-react';
 import { UserProfile, HammerItem, PowerupItem } from '../../types';
 import { DEFAULT_HAMMERS, DEFAULT_POWERUPS } from '../../services/storage';
 import { sfx } from '../../services/sfx';
@@ -99,8 +99,8 @@ export const ShopModal: React.FC<ShopModalProps> = ({ profile, onClose, onUpdate
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white font-['Outfit'] tracking-tight">Armory & Powerup Shop</h2>
-              <p className="text-xs text-slate-400">Upgrade hammers, unlock visual styles & stock combat items</p>
+              <h2 className="text-xl font-black text-white font-display tracking-wide">Armory & Powerup Shop</h2>
+              <p className="text-xs text-slate-400 font-body font-medium">Upgrade hammers, unlock visual styles & stock combat items</p>
             </div>
           </div>
 
@@ -116,9 +116,10 @@ export const ShopModal: React.FC<ShopModalProps> = ({ profile, onClose, onUpdate
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition"
+              aria-label="Cerrar ventana"
+              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -182,8 +183,8 @@ export const ShopModal: React.FC<ShopModalProps> = ({ profile, onClose, onUpdate
                             🔨
                           </div>
                           <div>
-                            <h3 className="font-bold text-sm text-white">{hammer.name}</h3>
-                            <span className="text-[10px] text-orange-400 font-black uppercase tracking-wider">
+                            <h3 className="font-display font-bold text-sm text-white">{hammer.name}</h3>
+                            <span className="text-[10px] text-orange-400 font-black uppercase tracking-wider font-body">
                               {hammer.specialEffect.replace('_', ' ')}
                             </span>
                           </div>
@@ -273,8 +274,8 @@ export const ShopModal: React.FC<ShopModalProps> = ({ profile, onClose, onUpdate
                             {getPowerupIcon(pw.icon)}
                           </div>
                           <div>
-                            <h3 className="font-bold text-sm text-white">{pw.name}</h3>
-                            <span className="text-xs text-slate-400">Duration: {pw.duration}s</span>
+                            <h3 className="font-display font-bold text-sm text-white">{pw.name}</h3>
+                            <span className="text-xs text-slate-400 font-body">Duration: {pw.duration}s</span>
                           </div>
                         </div>
 

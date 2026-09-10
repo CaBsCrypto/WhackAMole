@@ -174,7 +174,7 @@ export const ChefIdleCharacter: React.FC<ChefIdleCharacterProps> = ({
             className="absolute -top-12 z-30 px-3 py-1.5 bg-amber-950/90 border border-amber-400/40 backdrop-blur-md rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.5)] cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs font-bold text-amber-200"
           >
             {bubbleText.icon && <span className="text-sm">{bubbleText.icon}</span>}
-            <span className="font-['Outfit'] tracking-wide">{bubbleText.text}</span>
+            <span className="font-body tracking-wide">{bubbleText.text}</span>
             {/* Bubble Tail */}
             <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-950/90 border-r border-b border-amber-400/40 rotate-45" />
           </motion.div>
@@ -686,7 +686,7 @@ export const ChefIdleCharacter: React.FC<ChefIdleCharacterProps> = ({
       <div className="mt-1 flex flex-col items-center gap-1.5">
         <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/80 border border-white/10 shadow-sm">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider font-['Outfit']">
+          <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider font-display">
             Chef Luigi • En Guardia
           </span>
         </div>

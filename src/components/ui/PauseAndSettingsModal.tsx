@@ -1,8 +1,9 @@
 import React from 'react';
-import { Settings, Volume2, VolumeX, Moon, Sun, Bell, RefreshCw, Play, RotateCcw, Home } from 'lucide-react';
-import { UserProfile, GameTheme, MoleType } from '../../types';
+import { Settings, Volume2, VolumeX, Moon, Sun, Bell, RefreshCw, Play, RotateCcw, Home, X } from 'lucide-react';
+import { UserProfile, GameTheme, MoleType, ControlMode } from '../../types';
 import { sfx } from '../../services/sfx';
 import { dynamicSoundtrack } from '../../services/soundtrack';
+import { ModeSelector } from './ModeSelector';
 
 interface PauseAndSettingsModalProps {
   profile: UserProfile;
@@ -15,6 +16,7 @@ interface PauseAndSettingsModalProps {
   onTriggerKitchenDisaster?: () => void;
   onTestCompleteRecipe?: () => void;
   onTestParticleExplosion?: (type: MoleType) => void;
+  onRepeatCameraTutorial?: () => void;
   onUpdateProfile: (updated: UserProfile) => void;
 }
 
@@ -36,6 +38,7 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
   onTriggerKitchenDisaster,
   onTestCompleteRecipe,
   onTestParticleExplosion,
+  onRepeatCameraTutorial,
   onUpdateProfile,
 }) => {
   if (!isOpen) return null;
@@ -82,6 +85,13 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
     });
   };
 
+  const handleControlModeChange = (mode: ControlMode) => {
+    onUpdateProfile({
+      ...profile,
+      settings: { ...profile.settings, controlMode: mode },
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
       <div className="flex flex-col w-full max-w-lg bg-slate-900 rounded-3xl border border-white/10 shadow-2xl overflow-hidden animate-fade-in">
@@ -92,18 +102,19 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white font-['Outfit'] tracking-tight">
+              <h2 className="text-xl font-black text-white font-display tracking-wide">
                 {isPaused ? 'Game Paused' : 'Settings & Preferences'}
               </h2>
-              <p className="text-xs text-slate-400">Audio, graphics themes & synchronization</p>
+              <p className="text-xs text-slate-400 font-body font-medium">Audio, graphics themes & synchronization</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition"
+            aria-label="Cerrar ventana"
+            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -141,7 +152,7 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
 
           {/* Sound & Music Sliders */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Audio Sliders</h3>
+            <h3 className="text-xs font-display font-bold uppercase text-slate-400 tracking-wider">Audio Sliders</h3>
 
             {/* SFX Volume */}
             <div className="flex items-center justify-between gap-4 p-3 bg-slate-950/70 rounded-2xl border border-white/10">
@@ -178,9 +189,34 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Control Mode Selector */}
+          <div className="flex flex-col gap-2">
+            <h3 className="text-xs font-display font-bold uppercase text-slate-400 tracking-wider">Modo de Control</h3>
+            <ModeSelector
+              controlMode={profile.settings.controlMode || 'classic'}
+              onChange={handleControlModeChange}
+              compact={false}
+            />
+            {onRepeatCameraTutorial && (
+              <button
+                type="button"
+                id="btn_repeat_camera_tutorial"
+                onClick={() => {
+                  sfx.playButtonClick();
+                  onRepeatCameraTutorial();
+                  onClose();
+                }}
+                className="mt-1 flex items-center justify-center gap-2 p-2.5 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 rounded-2xl text-xs font-bold text-indigo-300 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Repetir Tutorial de Cámara</span>
+              </button>
+            )}
+          </div>
+
           {/* Theme Selector */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Arena 3D Environment</h3>
+            <h3 className="text-xs font-display font-bold uppercase text-slate-400 tracking-wider">Arena 3D Environment</h3>
             <div className="grid grid-cols-2 gap-2.5">
               {THEMES.map((th) => (
                 <button

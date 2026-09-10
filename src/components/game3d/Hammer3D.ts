@@ -16,6 +16,10 @@ export class HammerController {
   private rollerMesh: THREE.Mesh | null = null;
   private light: THREE.PointLight | null = null;
   private currentHammer: HammerItem | null = null;
+  private ribbonMesh: THREE.Mesh | null = null;
+  private ribbonGeom: THREE.BufferGeometry | null = null;
+  private ribbonPosAttr: THREE.BufferAttribute | null = null;
+  private ribbonPositions = new Float32Array(10 * 3); // 5 arc points (inner & outer) = 10 vertices
 
   constructor() {
     this.group = new THREE.Group();
@@ -42,6 +46,44 @@ export class HammerController {
       this.light.position.set(0, 0.4, 0);
       this.group.add(this.light);
     }
+
+    // Initialize 4-segment swing arc ribbon mesh
+    this.initRibbonMesh(hammer);
+  }
+
+  private initRibbonMesh(hammer: HammerItem) {
+    const geom = new THREE.BufferGeometry();
+    this.ribbonPositions.fill(0);
+    const posAttr = new THREE.BufferAttribute(this.ribbonPositions, 3);
+    geom.setAttribute('position', posAttr);
+    this.ribbonPosAttr = posAttr;
+
+    const indices: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const p0 = i * 2;
+      const p1 = i * 2 + 1;
+      const p2 = (i + 1) * 2;
+      const p3 = (i + 1) * 2 + 1;
+      indices.push(p0, p1, p2);
+      indices.push(p1, p3, p2);
+    }
+    geom.setIndex(indices);
+    this.ribbonGeom = geom;
+
+    const trailColor = hammer.glowColor ? new THREE.Color(hammer.glowColor) : new THREE.Color(0xffffff);
+    const mat = new THREE.MeshBasicMaterial({
+      color: trailColor,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.visible = false;
+    this.ribbonMesh = mesh;
+    this.group.add(mesh);
   }
 
   private buildHammerMesh(hammer: HammerItem): THREE.Group {
@@ -501,6 +543,10 @@ export class HammerController {
         this.isSwinging = false;
         this.hammerMesh.rotation.set(this.baseRotation.x, this.baseRotation.y, this.baseRotation.z);
         this.hammerMesh.position.set(0, 0, 0);
+        this.hammerMesh.scale.set(1, 1, 1);
+        if (this.ribbonMesh) {
+          this.ribbonMesh.visible = false;
+        }
         this.group.rotation.set(
           this.baseRotation.x + this.currentTiltX,
           this.baseRotation.y,
@@ -514,12 +560,55 @@ export class HammerController {
           const smashRotX = this.baseRotation.x - p * 1.6;
           this.hammerMesh.rotation.x = smashRotX;
           this.hammerMesh.position.y = -p * 0.45;
+
+          // Milestone 2 (F7): Hammer swing velocity stretch (Sy=1.25 during strike)
+          const stretch = THREE.MathUtils.lerp(1.0, 1.25, Math.sin(p * Math.PI));
+          const sxz = 1 / Math.sqrt(stretch);
+          this.hammerMesh.scale.set(sxz, stretch, sxz);
         } else {
           // Elastic spring recoil phase
           const p = (progress - 0.4) / 0.6;
           const bounce = Math.sin(p * Math.PI * 2) * (1 - p) * 0.4;
           this.hammerMesh.rotation.x = this.baseRotation.x + bounce;
           this.hammerMesh.position.y = bounce * 0.3;
+
+          // Milestone 2 (F7): Hammer impact compression (Sy=0.80 on impact) settling back to 1.0
+          const impactSquash = THREE.MathUtils.lerp(0.80, 1.0, Math.min(1, p * 2.2));
+          const sxz = 1 / Math.sqrt(impactSquash);
+          this.hammerMesh.scale.set(sxz, impactSquash, sxz);
+        }
+
+        // Milestone 2 (F7): 4-segment swing arc ribbon mesh for subtle motion blur
+        if (this.ribbonMesh && this.ribbonPosAttr) {
+          if (progress < 0.6) {
+            this.ribbonMesh.visible = true;
+            const currentRotX = this.hammerMesh.rotation.x;
+            const arcSpan = 0.95 * Math.sin(Math.min(1, progress / 0.4) * Math.PI);
+            const py = this.hammerMesh.position.y;
+
+            for (let k = 0; k < 5; k++) {
+              const trailAngle = currentRotX + (k / 4) * arcSpan;
+              const cosA = Math.cos(trailAngle);
+              const sinA = Math.sin(trailAngle);
+
+              // Inner edge of roller arc
+              this.ribbonPositions[k * 6 + 0] = 0;
+              this.ribbonPositions[k * 6 + 1] = py + 0.95 * cosA;
+              this.ribbonPositions[k * 6 + 2] = -0.95 * sinA;
+
+              // Outer edge of roller arc
+              this.ribbonPositions[k * 6 + 3] = 0;
+              this.ribbonPositions[k * 6 + 4] = py + 1.55 * cosA;
+              this.ribbonPositions[k * 6 + 5] = -1.55 * sinA;
+            }
+
+            this.ribbonPosAttr.needsUpdate = true;
+            if (this.ribbonMesh.material instanceof THREE.MeshBasicMaterial) {
+              this.ribbonMesh.material.opacity = Math.sin(Math.min(1, progress / 0.5) * Math.PI) * 0.4;
+            }
+          } else {
+            this.ribbonMesh.visible = false;
+          }
         }
 
         // Apply subtle motion tilt during swing for natural feel
@@ -530,6 +619,10 @@ export class HammerController {
         );
       }
     } else if (this.hammerMesh) {
+      this.hammerMesh.scale.set(1, 1, 1);
+      if (this.ribbonMesh) {
+        this.ribbonMesh.visible = false;
+      }
       // Idle chef posture: subtle gentle breathing sway + motion tilt
       const time = performance.now() * 0.003;
       this.hammerMesh.position.y = Math.sin(time) * 0.025;

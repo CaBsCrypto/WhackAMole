@@ -118,7 +118,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({ profile, onB
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div>
-              <h2 className="text-xl font-black text-white font-['Outfit'] tracking-tight">{room.name}</h2>
+              <h2 className="text-xl font-black text-white font-display tracking-wide">{room.name}</h2>
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span className="capitalize">{room.mode} Mode</span>
                 <span>•</span>
@@ -297,7 +297,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({ profile, onB
         <div className="w-20 h-20 rounded-3xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mb-6 animate-pulse">
           <Swords className="w-10 h-10 text-orange-400 animate-spin" />
         </div>
-        <h2 className="text-2xl font-black text-white font-['Outfit'] mb-2 tracking-tight">Searching for Opponent...</h2>
+        <h2 className="text-2xl font-black text-white font-display mb-2 tracking-wide">Searching for Opponent...</h2>
         <p className="text-xs text-slate-400 mb-6">Connecting you to global 1v1 matchmaking queue. Preparing synchronized arena...</p>
 
         <button
@@ -326,7 +326,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({ profile, onB
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-2xl font-black text-white font-['Outfit'] tracking-tight">Multiplayer Duel 1v1</h2>
+            <h2 className="text-2xl font-black text-white font-display tracking-wide">Multiplayer Duel 1v1</h2>
             <p className="text-xs text-slate-400">Compete in real time on a shared synchronized mole arena!</p>
           </div>
         </div>

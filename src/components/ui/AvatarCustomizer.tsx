@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Check, Sparkles, Wand2 } from 'lucide-react';
+import { User, Check, Sparkles, Wand2, X } from 'lucide-react';
 import { UserProfile, AvatarConfig } from '../../types';
 import { sfx } from '../../services/sfx';
 
@@ -79,23 +79,24 @@ export const AvatarCustomizer: React.FC<AvatarCustomizerProps> = ({ profile, onC
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white font-['Outfit'] tracking-tight">Avatar Customizer</h2>
-              <p className="text-xs text-slate-400">Personalize your Whacker identity & title</p>
+              <h2 className="text-xl font-black text-white font-display tracking-wide">Avatar Customizer</h2>
+              <p className="text-xs text-slate-400 font-body font-medium">Personalize your Whacker identity & title</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={handleRandomize}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-yellow-400 text-xs font-bold rounded-xl border border-white/10 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-yellow-400 text-xs font-bold rounded-xl border border-white/10 transition cursor-pointer"
             >
               <Wand2 className="w-4 h-4" /> Randomize
             </button>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition"
+              aria-label="Cerrar ventana"
+              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -136,7 +137,7 @@ export const AvatarCustomizer: React.FC<AvatarCustomizerProps> = ({ profile, onC
               </div>
             </div>
 
-            <span className="text-base font-black text-white">{name || 'Whacker'}</span>
+            <span className="text-base font-display font-bold text-white">{name || 'Whacker'}</span>
             <span className="text-[10px] text-orange-400 font-black uppercase tracking-wider mt-1 bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20">
               {avatar.title}
             </span>

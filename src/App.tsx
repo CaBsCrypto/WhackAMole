@@ -55,6 +55,9 @@ const GestureReticle = React.lazy(() =>
 const CameraTutorialModal = React.lazy(() =>
   import('./components/camera/CameraTutorialModal').then((m) => ({ default: m.CameraTutorialModal }))
 );
+const CameraSmashToStart = React.lazy(() =>
+  import('./components/camera/CameraSmashToStart').then((m) => ({ default: m.CameraSmashToStart }))
+);
 const MultiplayerLobby = React.lazy(() =>
   import('./components/ui/MultiplayerLobby').then((m) => ({ default: m.MultiplayerLobby }))
 );
@@ -321,10 +324,10 @@ export default function App() {
       if (btn) {
         const rect = btn.getBoundingClientRect();
         const isHover =
-          cursor.clientX >= rect.left - 12 &&
-          cursor.clientX <= rect.right + 12 &&
-          cursor.clientY >= rect.top - 12 &&
-          cursor.clientY <= rect.bottom + 12;
+          cursor.clientX >= rect.left - 40 &&
+          cursor.clientX <= rect.right + 40 &&
+          cursor.clientY >= rect.top - 40 &&
+          cursor.clientY <= rect.bottom + 40;
         setIsPlayHoveredByHand(isHover);
       } else {
         setIsPlayHoveredByHand(false);
@@ -351,10 +354,10 @@ export default function App() {
         if (btn) {
           const rect = btn.getBoundingClientRect();
           if (
-            cursor.clientX >= rect.left - 16 &&
-            cursor.clientX <= rect.right + 16 &&
-            cursor.clientY >= rect.top - 16 &&
-            cursor.clientY <= rect.bottom + 16
+            cursor.clientX >= rect.left - 40 &&
+            cursor.clientX <= rect.right + 40 &&
+            cursor.clientY >= rect.top - 40 &&
+            cursor.clientY <= rect.bottom + 40
           ) {
             isPlayHit = true;
           }
@@ -1438,26 +1441,28 @@ export default function App() {
                     <ModeSelector controlMode={controlMode} onChange={handleSetControlMode} />
                   </div>
 
-                  {/* Immersive UI Chunky Tactile Play Button with Hand Cursor Hover Support */}
+                  {/* Action Button: Interactive 'Smash to Start' in Camera Mode or Tactile Play Button in Classic Mode */}
                   <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center justify-center">
-                    <button
-                      id="btn_play_arcade"
-                      onClick={() => handleStartArcade('arcade')}
-                      className={`w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer ${
-                        isPlayHoveredByHand && controlMode === 'camera'
-                          ? 'scale-105 ring-4 ring-amber-300 shadow-[0_0_40px_rgba(245,158,11,0.85)] border-amber-400 -translate-y-1'
-                          : ''
-                      }`}
-                    >
-                      <Play className={`w-6 h-6 fill-current transition-transform duration-150 ${isPlayHoveredByHand && controlMode === 'camera' ? 'scale-125' : ''}`} />
-                      ¡Defender Cocina!
-                    </button>
-                    {controlMode === 'camera' && (
-                      <div className={`mt-2 text-center text-xs font-bold transition-all duration-200 ${
-                        isPlayHoveredByHand ? 'text-amber-300 scale-105 animate-pulse' : 'text-slate-400'
-                      }`}>
-                        {isPlayHoveredByHand ? '✊ ¡Cierra el puño o 🤏 pellizca para comenzar!' : '🎯 Apunta aquí con la mano para iniciar'}
-                      </div>
+                    {controlMode === 'camera' ? (
+                      <React.Suspense fallback={<div className="w-full h-40 bg-slate-800/60 rounded-3xl animate-pulse" />}>
+                        <CameraSmashToStart
+                          cursor={handTracking.cursor}
+                          gesture={handTracking.gesture}
+                          status={handTracking.status}
+                          onSmashStart={() => handleStartArcade('arcade')}
+                          onOpenTutorial={() => setShowCameraTutorial(true)}
+                          onSwitchToClassic={() => handleSetControlMode('classic')}
+                        />
+                      </React.Suspense>
+                    ) : (
+                      <button
+                        id="btn_play_arcade"
+                        onClick={() => handleStartArcade('arcade')}
+                        className="w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer"
+                      >
+                        <Play className="w-6 h-6 fill-current" />
+                        ¡Defender Cocina!
+                      </button>
                     )}
                   </div>
                 </div>

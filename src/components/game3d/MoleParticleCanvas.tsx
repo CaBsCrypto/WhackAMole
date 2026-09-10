@@ -102,8 +102,8 @@ const MOLE_THEMES: Record<
     glowColor: '#ea580c',
     flashColor: 'rgba(239, 68, 68, 0.9)',
     shapes: ['circle', 'streak'],
-    baseCount: 44,
-    speedMultiplier: 1.5,
+    baseCount: 10,
+    speedMultiplier: 1.25,
   },
   tough: {
     colors: ['#94a3b8', '#cbd5e1', '#64748b', '#f97316', '#e2e8f0', '#475569'],
@@ -333,8 +333,6 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         ctx.save();
         ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 6;
 
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rotation);
@@ -404,15 +402,15 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         const countMult = (isCrit ? 1.4 : 1.0) * (isDefeated ? 1.25 : 1.0);
         const particleCount = Math.round(theme.baseCount * countMult);
 
-        // 1. Central Core Impact Flash
+        // 1. Central Core Impact Flash (80ms flash for punchy zero-lag bomb pop)
         flashesRef.current.push({
           x,
           y,
-          radius: (isCrit ? 48 : 34) * (type === 'boss' ? 1.7 : 1.0),
+          radius: (isCrit ? 48 : (type === 'bomb' ? 30 : 34)) * (type === 'boss' ? 1.7 : 1.0),
           color: theme.flashColor,
           alpha: 0.85,
           life: 0,
-          maxLife: 0.18,
+          maxLife: type === 'bomb' ? 0.08 : 0.18,
         });
 
         // 2. Shockwave Expanding Ring
@@ -420,15 +418,15 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
           x,
           y,
           radius: 8,
-          maxRadius: (isCrit ? 95 : 72) * (type === 'boss' ? 1.7 : type === 'bomb' ? 1.5 : 1.0),
+          maxRadius: (isCrit ? 95 : 72) * (type === 'boss' ? 1.7 : type === 'bomb' ? 1.3 : 1.0),
           color: theme.ringColor,
           lineWidth: isCrit || type === 'boss' ? 5.5 : 3.5,
           life: 0,
           maxLife: type === 'boss' ? 0.42 : 0.3,
         });
 
-        // Extra secondary delayed ring for Boss, Bomb, or Critical Hits
-        if (type === 'boss' || type === 'bomb' || isCrit) {
+        // Extra secondary delayed ring for Boss or Critical Hits (bomb excluded for zero-lag mobile)
+        if ((type === 'boss' || isCrit) && type !== 'bomb') {
           setTimeout(() => {
             ringsRef.current.push({
               x,
@@ -467,7 +465,9 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
             baseSize,
             alpha: 1.0,
             life: 0,
-            maxLife: 0.4 + Math.random() * (type === 'boss' ? 0.45 : 0.3),
+            maxLife: type === 'bomb'
+              ? 0.22 + Math.random() * 0.10
+              : 0.4 + Math.random() * (type === 'boss' ? 0.45 : 0.3),
             gravity: type === 'frost' ? 3.5 : type === 'bomb' ? 6.5 : 5.0,
             drag: 0.945,
             shape,
@@ -476,8 +476,8 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
           });
         }
 
-        // 4. Auxiliary Micro-Sparks / Glitter
-        const glitterCount = isCrit || type === 'golden' || type === 'rainbow' ? 14 : 6;
+        // 4. Auxiliary Micro-Sparks / Glitter (omitted for bomb)
+        const glitterCount = type === 'bomb' ? 0 : (isCrit || type === 'golden' || type === 'rainbow' ? 14 : 6);
         for (let g = 0; g < glitterCount; g++) {
           const angle = Math.random() * Math.PI * 2;
           const speed = (4.0 + Math.random() * 7.0) * theme.speedMultiplier;

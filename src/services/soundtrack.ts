@@ -3,9 +3,12 @@
  * Synthesizes adaptive interactive arcade audio using Web Audio API:
  * - Dynamic BPM acceleration (from 115 BPM to 165 BPM as clock winds down)
  * - Layered adaptive stems (Drum Groove, Funk Bassline, Chords, Frenzy Arpeggio)
+ * - Ambient arcade lounge groove for menu/idle state with immediate slider feedback
  * - Low-pass filter cutoff opens up with combo streak
  * - Auto ducking on massive hammer impacts
  */
+
+export type SoundtrackMode = 'menu' | 'gameplay';
 
 class DynamicSoundtrackEngine {
   private ctx: AudioContext | null = null;
@@ -14,6 +17,7 @@ class DynamicSoundtrackEngine {
   private masterGain: GainNode | null = null;
   private filterNode: BiquadFilterNode | null = null;
   private loopInterval: number | null = null;
+  private mode: SoundtrackMode = 'menu';
 
   // Music state
   private bpm = 120;
@@ -30,35 +34,91 @@ class DynamicSoundtrackEngine {
   public init() {
     if (this.ctx) return;
     try {
-      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtxClass();
+      const AudioCtxClass = typeof window !== 'undefined'
+        ? (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
+        : (typeof globalThis !== 'undefined' ? (globalThis as unknown as { AudioContext: typeof AudioContext }).AudioContext : undefined);
+      if (AudioCtxClass) {
+        this.ctx = new AudioCtxClass();
 
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
+        this.masterGain = this.ctx.createGain();
+        const initialGain = (this.isMuted || this.volume <= 0.001) ? 0 : this.volume * 0.45;
+        this.masterGain.gain.setValueAtTime(initialGain, this.ctx.currentTime);
 
-      this.filterNode = this.ctx.createBiquadFilter();
-      this.filterNode.type = 'lowpass';
-      this.filterNode.frequency.setValueAtTime(1800, this.ctx.currentTime);
-      this.filterNode.Q.setValueAtTime(3.5, this.ctx.currentTime);
+        this.filterNode = this.ctx.createBiquadFilter();
+        this.filterNode.type = 'lowpass';
+        this.filterNode.frequency.setValueAtTime(1800, this.ctx.currentTime);
+        this.filterNode.Q.setValueAtTime(3.5, this.ctx.currentTime);
 
-      this.filterNode.connect(this.masterGain);
-      this.masterGain.connect(this.ctx.destination);
+        this.filterNode.connect(this.masterGain);
+        this.masterGain.connect(this.ctx.destination);
+      }
     } catch {
       console.warn('Web Audio API not supported');
     }
   }
 
-  public start() {
+  public start(mode: SoundtrackMode = 'gameplay') {
     this.init();
     if (!this.ctx) return;
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
+
+    this.mode = mode;
+    if (mode === 'menu') {
+      this.bpm = 104;
+      this.intensity = 0.12;
+      this.combo = 0;
+      this.frenzyMode = false;
+      if (this.filterNode && this.ctx) {
+        this.filterNode.frequency.setTargetAtTime(1500, this.ctx.currentTime, 0.1);
+      }
+    }
+
     if (this.isPlaying) return;
 
     this.isPlaying = true;
     this.step = 0;
     this.scheduleNextTick();
+  }
+
+  public resume() {
+    this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
+  public setMode(mode: SoundtrackMode) {
+    this.mode = mode;
+    if (mode === 'menu') {
+      this.bpm = 104;
+      this.intensity = 0.12;
+      this.combo = 0;
+      this.frenzyMode = false;
+      if (this.filterNode && this.ctx) {
+        this.filterNode.frequency.setTargetAtTime(1500, this.ctx.currentTime, 0.1);
+      }
+    }
+    if (!this.isPlaying) {
+      this.start(mode);
+    }
+  }
+
+  public getMode(): SoundtrackMode {
+    return this.mode;
+  }
+
+  public getIsPlaying(): boolean {
+    return this.isPlaying;
+  }
+
+  public setAudioContext(ctx: AudioContext | null) {
+    this.ctx = ctx;
+  }
+
+  public getAudioContext(): AudioContext | null {
+    return this.ctx;
   }
 
   public stop() {
@@ -70,10 +130,12 @@ class DynamicSoundtrackEngine {
   }
 
   public setVolume(val: number) {
-    this.volume = Math.max(0, Math.min(1, val));
+    const normalized = val > 1 ? val / 100 : val;
+    this.volume = Math.max(0, Math.min(1, normalized));
     if (this.masterGain && this.ctx) {
       const targetGain = (this.isMuted || this.volume <= 0.001) ? 0 : this.volume * 0.45;
-      this.masterGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.05);
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.masterGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.03);
     }
   }
 
@@ -83,6 +145,7 @@ class DynamicSoundtrackEngine {
   }
 
   public updateGameState(timeRemaining: number, maxTime: number, combo: number, frenzy: boolean) {
+    this.mode = 'gameplay';
     this.combo = combo;
     this.frenzyMode = frenzy;
 
@@ -127,6 +190,41 @@ class DynamicSoundtrackEngine {
 
   private playStep(step: number, time: number) {
     if (!this.ctx || !this.filterNode || this.isMuted || this.volume <= 0.001) return;
+
+    if (this.mode === 'menu') {
+      // Relaxed ambient arcade lounge groove
+      // 1. Warm kick on step 0 and 8
+      if (step === 0 || step === 8) {
+        this.playKick(time);
+      }
+
+      // 2. Chilled hi-hat on every other step
+      if (step % 2 === 0) {
+        this.playHiHat(time, step % 4 === 2 ? 0.22 : 0.12);
+      }
+
+      // 3. Gentle snare on steps 4 and 12
+      if (step === 4 || step === 12) {
+        this.playSnare(time);
+      }
+
+      // 4. Chilled funk bassline
+      const menuBassRhythm = [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0];
+      if (menuBassRhythm[step]) {
+        const noteIdx = (Math.floor(step / 4) + (step % 2)) % this.bassNotes.length;
+        const noteFreq = this.bassNotes[noteIdx];
+        this.playBassNote(noteFreq, time, stepDuration(this.bpm) * 0.7);
+      }
+
+      // 5. Warm ambient chord pads
+      if (step === 0) {
+        this.playChordNotes([329.63, 392.0, 493.88], time, stepDuration(this.bpm) * 3.6); // Em
+      } else if (step === 8) {
+        this.playChordNotes([293.66, 369.99, 440.0], time, stepDuration(this.bpm) * 3.6); // D / Bm
+      }
+
+      return;
+    }
 
     // 1. Kick Drum (On steps 0, 4, 8, 12, with bonus off-beats at high intensity)
     const isKick = step === 0 || step === 4 || step === 8 || step === 12 || (this.intensity > 0.6 && step === 14);
@@ -271,6 +369,27 @@ class DynamicSoundtrackEngine {
 
     osc.start(time);
     osc.stop(time + dur + 0.01);
+  }
+
+  private playChordNotes(freqs: number[], time: number, dur: number) {
+    if (!this.ctx || !this.filterNode) return;
+    freqs.forEach((freq) => {
+      if (!this.ctx || !this.filterNode) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, time);
+
+      gain.gain.setValueAtTime(0.08, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+      osc.connect(gain);
+      gain.connect(this.filterNode);
+
+      osc.start(time);
+      osc.stop(time + dur + 0.01);
+    });
   }
 }
 

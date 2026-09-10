@@ -226,15 +226,16 @@ export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
               <Target className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white tracking-wide uppercase">Bestiario: Ladrones de Pizza</h2>
-              <p className="text-xs text-slate-400">Guía culinaria táctica de las 10 especies de topos y sus puntos débiles</p>
+              <h2 className="text-lg font-black text-white tracking-wide uppercase font-display">Bestiario: Ladrones de Pizza</h2>
+              <p className="text-xs text-slate-400 font-body font-medium">Guía culinaria táctica de las 10 especies de topos y sus puntos débiles</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition border border-white/5"
+            aria-label="Cerrar ventana"
+            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -259,7 +260,7 @@ export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
                       {spec.icon}
                     </div>
                     <div>
-                      <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <div className="text-sm font-display font-bold text-white flex items-center gap-1.5">
                         {spec.name}
                         {spec.type === 'boss' && <Crown className="w-3.5 h-3.5 text-amber-400" />}
                       </div>
@@ -284,7 +285,7 @@ export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
                     {selectedMole.icon}
                   </div>
                   <div>
-                    <h3 className="text-xl font-black text-white">{selectedMole.name}</h3>
+                    <h3 className="text-xl font-display font-black text-white">{selectedMole.name}</h3>
                     <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${selectedMole.badgeColor}`}>
                       {selectedMole.badge}
                     </span>
@@ -333,21 +334,21 @@ export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
 
               {/* Description */}
               <div className="p-4 bg-slate-800/40 rounded-2xl border border-white/5 space-y-1.5">
-                <h4 className="text-xs uppercase font-black text-slate-300 tracking-wider">Species Behavior</h4>
-                <p className="text-xs text-slate-300 leading-relaxed">{selectedMole.description}</p>
+                <h4 className="text-xs uppercase font-display font-bold text-slate-300 tracking-wider">Species Behavior</h4>
+                <p className="text-xs text-slate-300 leading-relaxed font-body">{selectedMole.description}</p>
               </div>
 
               {/* Tactical Tip */}
               <div className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20 space-y-1">
-                <h4 className="text-xs uppercase font-black text-amber-400 tracking-wider flex items-center gap-1.5">
+                <h4 className="text-xs uppercase font-display font-bold text-amber-400 tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Pro Whacker Tip
                 </h4>
-                <p className="text-xs text-amber-200/90 leading-relaxed">{selectedMole.tacticalTip}</p>
+                <p className="text-xs text-amber-200/90 leading-relaxed font-body">{selectedMole.tacticalTip}</p>
               </div>
 
               {/* 3D Visual Traits */}
               <div className="space-y-2">
-                <h4 className="text-xs uppercase font-black text-slate-400 tracking-wider">3D Visual Identifiers</h4>
+                <h4 className="text-xs uppercase font-display font-bold text-slate-400 tracking-wider">3D Visual Identifiers</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedMole.visualTraits.map((trait, idx) => (
                     <span

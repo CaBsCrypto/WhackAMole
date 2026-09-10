@@ -186,6 +186,20 @@ export interface PizzaRecipe {
   }[];
 }
 
+export type ControlMode = 'classic' | 'camera';
+
+export interface UserSettings {
+  soundVolume: number;
+  musicVolume: number;
+  vibration: boolean;
+  darkMode: boolean;
+  theme: GameTheme;
+  pushNotifications: boolean;
+  showFps: boolean;
+  controlMode: ControlMode;
+  cameraPipCollapsed?: boolean;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -214,15 +228,7 @@ export interface UserProfile {
     totalIngredientsCollected?: number;
     totalPizzasBaked?: number;
   };
-  settings: {
-    soundVolume: number;
-    musicVolume: number;
-    vibration: boolean;
-    darkMode: boolean;
-    theme: GameTheme;
-    pushNotifications: boolean;
-    showFps: boolean;
-  };
+  settings: UserSettings;
   challenges: WeeklyChallenge[];
   completedAchievements: string[];
   lastLoginDate: string;
@@ -297,3 +303,32 @@ export interface PushNotification {
   timestamp: number;
   read: boolean;
 }
+
+export type HandTrackingStatus =
+  | 'idle'
+  | 'requesting-camera'
+  | 'loading-model'
+  | 'tracking'
+  | 'no-hand-detected'
+  | 'error';
+
+export interface HandGestureState {
+  isFist: boolean;
+  isPinching: boolean;
+  isWhacking: boolean; // Rising edge trigger
+  pinchDistance: number;
+  fistCurledCount: number;
+}
+
+export interface HandCursorData {
+  rawX: number;          // Normalized [0, 1]
+  rawY: number;          // Normalized [0, 1]
+  normX: number;         // Mirrored & margin-calibrated [0, 1]
+  normY: number;         // Margin-calibrated [0, 1]
+  clientX: number;       // Viewport pixels
+  clientY: number;       // Viewport pixels
+  ndcX: number;          // Three.js NDC [-1, 1]
+  ndcY: number;          // Three.js NDC [-1, 1]
+  landmarks: Array<{ x: number; y: number; z?: number }>;
+}
+

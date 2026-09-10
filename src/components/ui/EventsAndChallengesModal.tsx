@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Flame, Sparkles, Check, Gift, Target, Coins, Zap, Trophy } from 'lucide-react';
+import { Calendar, Flame, Sparkles, Check, Gift, Target, Coins, Zap, Trophy, X } from 'lucide-react';
 import { UserProfile, WeeklyChallenge, SpecialEvent } from '../../types';
 import { CURRENT_EVENTS } from '../../services/storage';
 import { sfx } from '../../services/sfx';
@@ -56,16 +56,17 @@ export const EventsAndChallengesModal: React.FC<EventsAndChallengesModalProps> =
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white font-['Outfit'] tracking-tight">Events & Weekly Bounties</h2>
-              <p className="text-xs text-slate-400">Complete challenges to earn coins, gems & exclusive perks</p>
+              <h2 className="text-xl font-black text-white font-display tracking-wide">Events & Weekly Bounties</h2>
+              <p className="text-xs text-slate-400 font-body font-medium">Complete challenges to earn coins, gems & exclusive perks</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition"
+            aria-label="Cerrar ventana"
+            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -73,7 +74,7 @@ export const EventsAndChallengesModal: React.FC<EventsAndChallengesModalProps> =
         <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5 bg-slate-900/50">
           {/* Active Special Events Banner */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+            <h3 className="text-xs font-display font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-yellow-400" /> Active Special Events
             </h3>
 
@@ -91,7 +92,7 @@ export const EventsAndChallengesModal: React.FC<EventsAndChallengesModalProps> =
                       Ends in {event.endsInHours}h
                     </span>
                   </div>
-                  <h4 className="font-black text-base font-['Outfit'] tracking-tight">{event.title}</h4>
+                  <h4 className="font-display font-bold text-base tracking-wide">{event.title}</h4>
                   <p className="text-xs text-white/90 mt-1">{event.description}</p>
                 </div>
               ))}
@@ -100,7 +101,7 @@ export const EventsAndChallengesModal: React.FC<EventsAndChallengesModalProps> =
 
           {/* Weekly Challenges List */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+            <h3 className="text-xs font-display font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
               <Flame className="w-4 h-4 text-orange-400" /> Weekly Bounties
             </h3>
 
@@ -119,7 +120,7 @@ export const EventsAndChallengesModal: React.FC<EventsAndChallengesModalProps> =
                         {getChallengeIcon(c.type)}
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-white">{c.title}</h4>
+                        <h4 className="font-display font-bold text-sm text-white">{c.title}</h4>
                         <p className="text-xs text-slate-400">{c.description}</p>
 
                         {/* Mini Progress bar */}

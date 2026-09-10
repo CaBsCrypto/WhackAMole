@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Send, Zap, Snowflake, Droplets, Bomb } from 'lucide-react';
+import { MessageSquare, Send, Zap, Snowflake, Droplets, Bomb, X } from 'lucide-react';
 import { MultiplayerRoom, CombatAttackType, UserProfile, MultiplayerPlayer } from '../../types';
 import { multiplayerClient } from '../../services/multiplayer';
 
@@ -176,8 +176,12 @@ export const MultiplayerMatchOverlay: React.FC<MultiplayerMatchOverlayProps> = (
         <div className="pointer-events-auto absolute bottom-16 left-4 w-72 bg-slate-900/95 border border-white/10 rounded-2xl p-3 shadow-2xl flex flex-col gap-2 backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-white/10 pb-1">
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Match Chat</span>
-            <button onClick={() => setChatOpen(false)} className="text-slate-400 hover:text-white text-xs">
-              ✕
+            <button
+              onClick={() => setChatOpen(false)}
+              aria-label="Cerrar chat"
+              className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
           <div className="h-32 overflow-y-auto flex flex-col gap-1.5 text-xs">

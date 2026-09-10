@@ -1,3 +1,5 @@
+import type { MoleType } from '../types';
+
 /**
  * Arcade Sound Effects Engine using Web Audio API
  * Generates responsive, punchy physics impacts, metal clangs, bomb blasts, and coin chimes.
@@ -19,8 +21,12 @@ class SoundEffectsEngine {
   private init() {
     if (this.ctx) return;
     try {
-      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtxClass();
+      const AudioCtxClass = typeof window !== 'undefined'
+        ? (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
+        : (typeof globalThis !== 'undefined' ? (globalThis as unknown as { AudioContext: typeof AudioContext }).AudioContext : undefined);
+      if (AudioCtxClass) {
+        this.ctx = new AudioCtxClass();
+      }
     } catch {
       console.warn('Web Audio not supported');
     }
@@ -1242,6 +1248,601 @@ class SoundEffectsEngine {
         this.playStandardSpawn();
         break;
     }
+  }
+
+  /**
+   * Metallic resonant ping + rim tap for helmet mole
+   */
+  public playHelmetHit(isLethal = false) {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // 1. Dual bandpass metal resonance at 820Hz and 1480Hz
+    const freqs = [820, 1480];
+    freqs.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = idx === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+
+      const decay = isLethal ? 0.28 : 0.22;
+      gain.gain.setValueAtTime(this.volume * (idx === 0 ? 0.45 : 0.3), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + decay + 0.01);
+    });
+
+    // 2. High metallic rim tap transient (2100Hz -> 620Hz in 20ms)
+    const tapOsc = this.ctx.createOscillator();
+    const tapGain = this.ctx.createGain();
+    tapOsc.type = 'triangle';
+    tapOsc.frequency.setValueAtTime(2100, now);
+    tapOsc.frequency.exponentialRampToValueAtTime(620, now + 0.02);
+
+    tapGain.gain.setValueAtTime(this.volume * 0.4, now);
+    tapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+    tapOsc.connect(tapGain);
+    tapGain.connect(this.ctx.destination);
+
+    tapOsc.start(now);
+    tapOsc.stop(now + 0.04);
+
+    // 3. If lethal, add heavy armor shatter crackle and deep crunch
+    if (isLethal) {
+      try {
+        const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1400, now);
+        filter.Q.setValueAtTime(2.0, now);
+
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(this.volume * 0.5, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(this.ctx.destination);
+
+        noise.start(now);
+        noise.stop(now + 0.13);
+      } catch {}
+
+      // Thud crunch
+      const crunchOsc = this.ctx.createOscillator();
+      const crunchGain = this.ctx.createGain();
+      crunchOsc.type = 'sawtooth';
+      crunchOsc.frequency.setValueAtTime(220, now);
+      crunchOsc.frequency.exponentialRampToValueAtTime(45, now + 0.15);
+
+      crunchGain.gain.setValueAtTime(this.volume * 0.4, now);
+      crunchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+      crunchOsc.connect(crunchGain);
+      crunchGain.connect(this.ctx.destination);
+
+      crunchOsc.start(now);
+      crunchOsc.stop(now + 0.17);
+    }
+  }
+
+  /**
+   * Crystalline ice shatter + brittle crackle for frost mole
+   */
+  public playFrostHit() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // 1. High frequency white noise burst (ice shattering)
+    try {
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.28));
+      }
+
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(3200, now);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(this.volume * 0.45, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.ctx.destination);
+
+      noise.start(now);
+      noise.stop(now + 0.13);
+    } catch {}
+
+    // 2. Crystalline FM bell partials at 2400Hz and 3840Hz
+    const bellFreqs = [2400, 3840];
+    bellFreqs.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(this.volume * (idx === 0 ? 0.35 : 0.22), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.26);
+    });
+
+    // 3. Brittle crackle ticks
+    [0.02, 0.05].forEach((offset) => {
+      if (!this.ctx) return;
+      const tick = this.ctx.createOscillator();
+      const tickGain = this.ctx.createGain();
+
+      tick.type = 'triangle';
+      tick.frequency.setValueAtTime(4500, now + offset);
+      tick.frequency.exponentialRampToValueAtTime(1200, now + offset + 0.015);
+
+      tickGain.gain.setValueAtTime(this.volume * 0.2, now + offset);
+      tickGain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.02);
+
+      tick.connect(tickGain);
+      tickGain.connect(this.ctx.destination);
+
+      tick.start(now + offset);
+      tick.stop(now + offset + 0.025);
+    });
+  }
+
+  /**
+   * Celestial glockenspiel arpeggio / golden sparkle cascade for golden mole
+   */
+  public playGoldenHit() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+    // Ascending pentatonic bells (E5, G#5, B5, E6, G#6, B6)
+    const notes = [659.25, 830.61, 987.77, 1318.51, 1661.22, 1975.53];
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const startTime = now + idx * 0.032;
+
+      // Pure bell fundamental
+      const osc1 = this.ctx.createOscillator();
+      const gain1 = this.ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq, startTime);
+
+      gain1.gain.setValueAtTime(this.volume * 0.32, startTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, startTime + 0.28);
+
+      osc1.connect(gain1);
+      gain1.connect(this.ctx.destination);
+      osc1.start(startTime);
+      osc1.stop(startTime + 0.3);
+
+      // Crystalline shimmer overtone
+      const osc2 = this.ctx.createOscillator();
+      const gain2 = this.ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(freq * 2, startTime);
+
+      gain2.gain.setValueAtTime(this.volume * 0.15, startTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
+
+      osc2.connect(gain2);
+      gain2.connect(this.ctx.destination);
+      osc2.start(startTime);
+      osc2.stop(startTime + 0.22);
+    });
+
+    // Shimmer sparkle filter burst at peak
+    try {
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.18);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+      }
+
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(4200, now + 0.08);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(this.volume * 0.22, now + 0.08);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.ctx.destination);
+
+      noise.start(now + 0.08);
+      noise.stop(now + 0.27);
+    } catch {}
+  }
+
+  /**
+   * Futuristic ascending dual-tone chime when camera tracking becomes active
+   */
+  public playCameraActivate() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // Dual ascending tone (523.25Hz -> 1046.50Hz)
+    const tones = [
+      { freq: 523.25, time: now, dur: 0.2 },
+      { freq: 1046.5, time: now + 0.085, dur: 0.3 },
+    ];
+
+    tones.forEach(({ freq, time, dur }) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, time);
+
+      gain.gain.setValueAtTime(0.001, time);
+      gain.gain.linearRampToValueAtTime(this.volume * 0.32, time + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(time);
+      osc.stop(time + dur + 0.01);
+    });
+  }
+
+  /**
+   * Crisp tactile haptic snap on fist/pinch camera strike
+   */
+  public playGestureConfirm() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // 15ms high-to-low pitch drop click (1400Hz -> 160Hz)
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1400, now);
+    osc.frequency.exponentialRampToValueAtTime(160, now + 0.015);
+
+    gain.gain.setValueAtTime(this.volume * 0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.016);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.018);
+
+    // Micro noise transient for tactile contact
+    try {
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.008);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(this.volume * 0.25, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.008);
+
+      noise.connect(noiseGain);
+      noiseGain.connect(this.ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.01);
+    } catch {}
+  }
+
+  /**
+   * Ethereal phase shift whoosh for phantom mole
+   */
+  public playPhantomDisappear() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // Dual detuned phase sweep
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+
+    osc1.frequency.setValueAtTime(460, now);
+    osc1.frequency.exponentialRampToValueAtTime(820, now + 0.14);
+    osc1.frequency.exponentialRampToValueAtTime(180, now + 0.32);
+
+    osc2.frequency.setValueAtTime(466, now); // Detuned by 6Hz for binaural beating
+    osc2.frequency.exponentialRampToValueAtTime(828, now + 0.14);
+    osc2.frequency.exponentialRampToValueAtTime(186, now + 0.32);
+
+    gain.gain.setValueAtTime(this.volume * 0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.35);
+    osc2.stop(now + 0.35);
+  }
+
+  /**
+   * Combustion roar + crackle for hammer fire burst
+   */
+  public playFireBurst() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // Low roar
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(90, now);
+    osc.frequency.linearRampToValueAtTime(160, now + 0.1);
+    osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+
+    gain.gain.setValueAtTime(this.volume * 0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.38);
+
+    // Sizzle crackle noise
+    try {
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.25);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+      }
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1800, now);
+      filter.Q.setValueAtTime(1.8, now);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(this.volume * 0.4, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.ctx.destination);
+
+      noise.start(now);
+      noise.stop(now + 0.26);
+    } catch {}
+  }
+
+  /**
+   * Frost wave shatter for hammer freeze wave
+   */
+  public playFreeze() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // Sub-zero chilling sweep
+    const sweep = this.ctx.createOscillator();
+    const sweepGain = this.ctx.createGain();
+    sweep.type = 'sine';
+    sweep.frequency.setValueAtTime(340, now);
+    sweep.frequency.exponentialRampToValueAtTime(80, now + 0.28);
+
+    sweepGain.gain.setValueAtTime(this.volume * 0.35, now);
+    sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    sweep.connect(sweepGain);
+    sweepGain.connect(this.ctx.destination);
+    sweep.start(now);
+    sweep.stop(now + 0.32);
+
+    // Glassy crystalline clink
+    const bell = this.ctx.createOscillator();
+    const bellGain = this.ctx.createGain();
+    bell.type = 'triangle';
+    bell.frequency.setValueAtTime(2200, now);
+    bell.frequency.exponentialRampToValueAtTime(1800, now + 0.15);
+
+    bellGain.gain.setValueAtTime(this.volume * 0.28, now);
+    bellGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    bell.connect(bellGain);
+    bellGain.connect(this.ctx.destination);
+    bell.start(now);
+    bell.stop(now + 0.24);
+  }
+
+  /**
+   * Electric arc crack for hammer lightning
+   */
+  public playLightning() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const now = this.ctx.currentTime;
+
+    // Sharp arc transient snap (2800Hz -> 100Hz in 8ms)
+    const arcOsc = this.ctx.createOscillator();
+    const arcGain = this.ctx.createGain();
+    arcOsc.type = 'sawtooth';
+    arcOsc.frequency.setValueAtTime(2800, now);
+    arcOsc.frequency.exponentialRampToValueAtTime(100, now + 0.008);
+
+    arcGain.gain.setValueAtTime(this.volume * 0.5, now);
+    arcGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+
+    arcOsc.connect(arcGain);
+    arcGain.connect(this.ctx.destination);
+    arcOsc.start(now);
+    arcOsc.stop(now + 0.02);
+
+    // High voltage electric buzz (120Hz saw wave burst)
+    const buzzOsc = this.ctx.createOscillator();
+    const buzzGain = this.ctx.createGain();
+    buzzOsc.type = 'sawtooth';
+    buzzOsc.frequency.setValueAtTime(120, now);
+
+    buzzGain.gain.setValueAtTime(this.volume * 0.35, now);
+    buzzGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    buzzOsc.connect(buzzGain);
+    buzzGain.connect(this.ctx.destination);
+    buzzOsc.start(now);
+    buzzOsc.stop(now + 0.09);
+
+    // Sizzle tail
+    try {
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.1);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+      }
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(2400, now);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(this.volume * 0.3, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.11);
+    } catch {}
+  }
+
+  /**
+   * Unified dispatcher for mole hit audio effects based on mole archetype
+   */
+  public playMoleHit(type: MoleType, isCrit = false, isLethal = false) {
+    if (this.isMuted) return;
+    switch (type) {
+      case 'bomb':
+        this.playExplosion();
+        break;
+      case 'fast':
+        this.playFastWhoosh();
+        this.playWhack(true);
+        break;
+      case 'tough':
+        if (isLethal) {
+          this.playArmorBreak();
+        } else {
+          this.playMetalClang();
+        }
+        break;
+      case 'helmet':
+        this.playHelmetHit(isLethal);
+        break;
+      case 'frost':
+        this.playFrostHit();
+        break;
+      case 'golden':
+        this.playGoldenHit();
+        break;
+      case 'rainbow':
+        this.playPowerup();
+        this.playWhack(true);
+        break;
+      case 'phantom':
+        this.playPhantomDisappear();
+        break;
+      case 'boss':
+        this.playBossRoar();
+        this.playWhack(true);
+        break;
+      case 'standard':
+      default:
+        this.playWhack(isCrit);
+        break;
+    }
+  }
+
+  public setAudioContext(ctx: AudioContext | null) {
+    this.ctx = ctx;
+  }
+
+  public getAudioContext(): AudioContext | null {
+    return this.ctx;
   }
 }
 

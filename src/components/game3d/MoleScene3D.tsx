@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
 import { MoleData, HammerItem, GameTheme, FloatingText, MoleType } from '../../types';
 import { createHoleMesh, createMoleMesh, updateMole3DHealth } from './Mole3DModels';
@@ -18,6 +18,15 @@ export interface TauntBubble {
   yPercent: number;
   isHit?: boolean;
   createdAt: number;
+}
+
+export interface MoleMeshItem {
+  mesh: THREE.Group;
+  mole: MoleData;
+  animProgress: number;
+  retreated?: boolean;
+  recoilStartTime?: number;
+  recoilDuration?: number;
 }
 
 // Random taunt messages shown when moles spawn
@@ -178,7 +187,68 @@ const HOLE_COORDS = [
   { x: 2.3, z: 2.2 },   // 8: Bot-Right
 ];
 
-export const MoleScene3D: React.FC<MoleScene3DProps> = ({
+export interface ResponsiveCameraConfig {
+  fov: number;
+  cameraPos: THREE.Vector3;
+  targetPos: THREE.Vector3;
+  isPortrait: boolean;
+  domeScale: THREE.Vector3;
+  domePosition: THREE.Vector3;
+}
+
+/**
+ * Dynamically calculates camera FOV, distance, elevation, target anchor,
+ * and oven dome background position and scale for responsive viewport framing.
+ * Ensures all 9 holes/dough discs are 100% visible on mobile portrait without clipping.
+ */
+export function computeResponsiveCameraConfig(width: number, height: number): ResponsiveCameraConfig {
+  const aspect = width / height;
+
+  if (aspect >= 1.0) {
+    // Landscape / Desktop: Classic angled counter perspective
+    return {
+      fov: 45,
+      cameraPos: new THREE.Vector3(0, 9.2, 7.8),
+      targetPos: new THREE.Vector3(0, 0.2, 0),
+      isPortrait: false,
+      domeScale: new THREE.Vector3(1.0, 1.0, 1.0),
+      domePosition: new THREE.Vector3(0, 0.4, -5.6),
+    };
+  }
+
+  // Portrait / Mobile: Clean tilted aerial view centered 100% on 3x3 board
+  const elevationRad = THREE.MathUtils.degToRad(62); // 62° clean tilted aerial perspective
+  const fov = 48; // Clean perspective without edge distortion
+  const halfFovRad = THREE.MathUtils.degToRad(fov / 2);
+  const targetBoardHalfWidth = 4.25; // Accommodates holes at x=±2.3 plus 1.12 dough disc + margin
+
+  // D * tan(halfFov) * aspect = targetBoardHalfWidth
+  const distance = Math.max(12.0, Math.min(22.0, targetBoardHalfWidth / (aspect * Math.tan(halfFovRad))));
+
+  const targetPos = new THREE.Vector3(0, 0.1, 0);
+  const cameraPos = new THREE.Vector3(
+    0,
+    targetPos.y + distance * Math.sin(elevationRad),
+    targetPos.z + distance * Math.cos(elevationRad)
+  );
+
+  return {
+    fov,
+    cameraPos,
+    targetPos,
+    isPortrait: true,
+    domeScale: new THREE.Vector3(0.72, 0.72, 0.72),
+    domePosition: new THREE.Vector3(0, -0.15, -6.8),
+  };
+}
+
+export interface MoleScene3DRef {
+  setGestureCursor: (ndcX: number, ndcY: number) => void;
+  triggerGestureWhack: (ndcX: number, ndcY: number, clientX: number, clientY: number) => number;
+  setGestureActive: (active: boolean) => void;
+}
+
+export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
   moles,
   selectedHammer,
   theme,
@@ -190,19 +260,21 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
   floatingTexts,
   screenShakeTrigger,
   particleExplosionTrigger,
-}) => {
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const hammerCtrlRef = useRef<HammerController | null>(null);
   const particlesRef = useRef<ParticleManager | null>(null);
-  const moleMeshesRef = useRef<Map<number, { mesh: THREE.Group; mole: MoleData; animProgress: number }>>(new Map());
+  const moleMeshesRef = useRef<Map<number, MoleMeshItem>>(new Map());
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const planeIntersectRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.5));
-  const cameraShakeRef = useRef<{ intensity: number; decay: number }>({ intensity: 0, decay: 0.9 });
+  const cameraShakeRef = useRef<{ intensity: number; decay: number }>({ intensity: 0, decay: 0.82 });
   const baseCameraPos = useRef(new THREE.Vector3(0, 9.2, 7.8));
+  const targetCameraPos = useRef(new THREE.Vector3(0, 0.2, 0));
+  const ovenGroupRef = useRef<THREE.Group | null>(null);
   const pizzaOvenActiveRef = useRef<boolean>(pizzaOvenActive);
   const kitchenDisasterActiveRef = useRef<boolean>(kitchenDisasterActive);
   const heatRingsRef = useRef<THREE.Mesh[]>([]);
@@ -229,10 +301,7 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
     if (!hole) return null;
 
     const v = new THREE.Vector3(hole.x, yWorld, hole.z);
-    const tempCam = cameraRef.current.clone();
-    tempCam.position.copy(baseCameraPos.current);
-    tempCam.updateMatrixWorld();
-    v.project(tempCam);
+    v.project(cameraRef.current);
 
     return {
       xPercent: Math.max(5, Math.min(95, ((v.x + 1) / 2) * 100)),
@@ -276,15 +345,14 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
     scene.background = new THREE.Color(bgColor);
     scene.fog = new THREE.FogExp2(fogColor, 0.04);
 
-    // 2. Camera (Pulled back for wider field of view of the pizza counter and all 9 holes)
-    if (width < height) {
-      baseCameraPos.current.set(0, 11.2, 9.4);
-    } else {
-      baseCameraPos.current.set(0, 9.2, 7.8);
-    }
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.copy(baseCameraPos.current);
-    camera.lookAt(0, 0.2, 0);
+    // 2. Camera setup with dynamic responsive configuration
+    const config = computeResponsiveCameraConfig(width, height);
+    baseCameraPos.current.copy(config.cameraPos);
+    targetCameraPos.current.copy(config.targetPos);
+
+    const camera = new THREE.PerspectiveCamera(config.fov, width / height, 0.1, 100);
+    camera.position.copy(config.cameraPos);
+    camera.lookAt(config.targetPos);
     cameraRef.current = camera;
 
     // 3. Renderer
@@ -412,7 +480,10 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
 
     // 1. NAPOLITAN WOOD-FIRED STONE PIZZA OVEN (Horno a la Leña Artesanal)
     const ovenGroup = new THREE.Group();
-    ovenGroup.position.set(0, 0.4, -5.6);
+    ovenGroup.name = 'oven_group';
+    ovenGroupRef.current = ovenGroup;
+    ovenGroup.position.copy(config.domePosition);
+    ovenGroup.scale.copy(config.domeScale);
 
     // Oven Terracotta & Dark Basalt Stone Dome
     const ovenDomeGeom = new THREE.SphereGeometry(2.3, 24, 16, 0, Math.PI * 2, 0, Math.PI / 1.7);
@@ -756,13 +827,38 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
         }
 
         if (mole.state === 'hit') {
-          // Rapid squash down
-          mesh.scale.y = THREE.MathUtils.lerp(mesh.scale.y, 0.15, 0.28);
-          mesh.scale.x = THREE.MathUtils.lerp(mesh.scale.x, 1.4, 0.28);
-          mesh.scale.z = THREE.MathUtils.lerp(mesh.scale.z, 1.4, 0.28);
-          mesh.position.y = THREE.MathUtils.lerp(mesh.position.y, -0.5, 0.22);
+          // Lethal hit: instant pancake squash (Sy=0.15, Sxz=1.4) + sink into hole
+          mesh.scale.y = THREE.MathUtils.lerp(mesh.scale.y, 0.15, 0.32);
+          mesh.scale.x = THREE.MathUtils.lerp(mesh.scale.x, 1.4, 0.32);
+          mesh.scale.z = THREE.MathUtils.lerp(mesh.scale.z, 1.4, 0.32);
+          mesh.position.y = THREE.MathUtils.lerp(mesh.position.y, -0.6, 0.25);
         } else if (mole.state === 'exploded') {
           mesh.scale.set(0.01, 0.01, 0.01);
+        } else if (item.recoilStartTime && performance.now() - item.recoilStartTime < (item.recoilDuration || 280)) {
+          // Non-lethal hits on multi-hit moles (tough, boss, helmet when HP > 0):
+          // spring recoil oscillation (Sy=0.38 -> 1.28 -> 1.0) so they don't immediately flatten
+          const elapsed = performance.now() - item.recoilStartTime;
+          const dur = item.recoilDuration || 280;
+          const p = Math.min(1, elapsed / dur);
+
+          let sy = 1.0;
+          if (p < 0.25) {
+            // Fast impact compression: 1.0 -> 0.38
+            const t = p / 0.25;
+            sy = THREE.MathUtils.lerp(1.0, 0.38, Math.sin(t * Math.PI * 0.5));
+          } else if (p < 0.65) {
+            // Elastic rebound stretch: 0.38 -> 1.28
+            const t = (p - 0.25) / 0.40;
+            sy = THREE.MathUtils.lerp(0.38, 1.28, Math.sin(t * Math.PI * 0.5));
+          } else {
+            // Damped settling: 1.28 -> 1.0
+            const t = (p - 0.65) / 0.35;
+            sy = 1.0 + 0.28 * Math.cos(t * Math.PI * 0.5) * (1 - t);
+          }
+
+          const sxz = 1 / Math.sqrt(Math.max(0.1, sy));
+          mesh.scale.set(sxz, sy, sxz);
+          mesh.position.y = 0;
         } else {
           // Different rising & staying speeds per mole type
           let riseTime = 180; // ms standard
@@ -781,20 +877,52 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
           const hideStartTime = totalDur - hideDuration;
 
           if (age < riseTime) {
-            // Rising out of hole
-            const progress = age / riseTime;
-            const ease = 1 - Math.pow(1 - progress, 3); // ease out cubic
-            mesh.position.y = -0.6 + ease * 0.6;
-            mesh.scale.set(1, 1, 1);
+            // Emergence squash & stretch with volume conservation:
+            const p = Math.max(0, Math.min(1, age / riseTime));
+            if (p < 0.18) {
+              // 0 <= p < 0.18: anticipation coil down (Sy=0.75, Sx=Sz=1.15)
+              const t = p / 0.18;
+              mesh.scale.y = THREE.MathUtils.lerp(1.0, 0.75, t);
+              mesh.scale.x = THREE.MathUtils.lerp(1.0, 1.15, t);
+              mesh.scale.z = THREE.MathUtils.lerp(1.0, 1.15, t);
+              mesh.position.y = -0.6;
+            } else if (p < 0.72) {
+              // 0.18 <= p < 0.72: upward surge stretch (Sy=1.32, Sx=Sz=0.87)
+              const t = (p - 0.18) / (0.72 - 0.18);
+              mesh.scale.y = THREE.MathUtils.lerp(0.75, 1.32, t);
+              mesh.scale.x = THREE.MathUtils.lerp(1.15, 0.87, t);
+              mesh.scale.z = THREE.MathUtils.lerp(1.15, 0.87, t);
+              mesh.position.y = -0.6 + t * 0.6;
+            } else {
+              // 0.72 <= p <= 1.0: apex overshoot and damped bounce settling to 1.0
+              const t = (p - 0.72) / (1.0 - 0.72);
+              const bounce = Math.sin(t * Math.PI * 2) * (1 - t) * 0.32;
+              mesh.scale.y = 1.0 + bounce;
+              const sxz = 1 / Math.sqrt(Math.max(0.2, mesh.scale.y));
+              mesh.scale.x = sxz;
+              mesh.scale.z = sxz;
+              mesh.position.y = 0 + Math.max(0, bounce * 0.08);
+            }
 
             // Golden mole spiral ascend
             if (mole.type === 'golden') {
-              mesh.rotation.y = progress * Math.PI * 2;
+              mesh.rotation.y = p * Math.PI * 2;
             }
           } else if (age > hideStartTime) {
-            // Retracting back into hole
-            const progress = (age - hideStartTime) / hideDuration;
-            mesh.position.y = -progress * 0.6;
+            // Retracting back into hole (Descent stretch Sy=1.22, Sx=Sz=0.90)
+            const p = Math.max(0, Math.min(1, (age - hideStartTime) / hideDuration));
+            mesh.position.y = -p * 0.6;
+
+            const stretchFactor = Math.sin(p * Math.PI);
+            mesh.scale.y = 1.0 + (1.22 - 1.0) * stretchFactor;
+            mesh.scale.x = 1.0 - (1.0 - 0.90) * stretchFactor;
+            mesh.scale.z = 1.0 - (1.0 - 0.90) * stretchFactor;
+
+            // Trigger Disappear Poof on first frame of retreat
+            if (!item.retreated && particlesRef.current) {
+              item.retreated = true;
+              particlesRef.current.emitDisappearPoof(new THREE.Vector3(holePos.x, 0.05, holePos.z));
+            }
           } else {
             // Idle state with distinct patterns
             if (mole.type === 'fast') {
@@ -922,6 +1050,7 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
       } else {
         camera.position.copy(baseCameraPos.current);
       }
+      camera.lookAt(targetCameraPos.current);
 
       renderer.render(scene, camera);
     };
@@ -933,14 +1062,25 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
       if (!containerRef.current || !rendererRef.current || !cameraRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
+      if (w <= 0 || h <= 0) return;
+
+      const cfg = computeResponsiveCameraConfig(w, h);
       cameraRef.current.aspect = w / h;
-      if (w < h) {
-        baseCameraPos.current.set(0, 11.2, 9.4);
-      } else {
-        baseCameraPos.current.set(0, 9.2, 7.8);
-      }
+      cameraRef.current.fov = cfg.fov;
       cameraRef.current.updateProjectionMatrix();
+
+      baseCameraPos.current.copy(cfg.cameraPos);
+      targetCameraPos.current.copy(cfg.targetPos);
+      cameraRef.current.position.copy(cfg.cameraPos);
+      cameraRef.current.lookAt(cfg.targetPos);
+
+      if (ovenGroupRef.current) {
+        ovenGroupRef.current.position.copy(cfg.domePosition);
+        ovenGroupRef.current.scale.copy(cfg.domeScale);
+      }
+
       rendererRef.current.setSize(w, h);
+      rendererRef.current.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     };
 
     const ro = new ResizeObserver(handleResize);
@@ -989,7 +1129,12 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
           const mesh = createMoleMesh(mole.type, theme);
           mesh.position.set(holePos.x, -0.6, holePos.z);
           scene.add(mesh);
-          currentMap.set(mole.holeIndex, { mesh, mole, animProgress: 0 });
+          currentMap.set(mole.holeIndex, { mesh, mole, animProgress: 0, retreated: false });
+
+          // Milestone 2 (F6): Emit Appear Poof on emergence
+          if (particlesRef.current) {
+            particlesRef.current.emitAppearPoof(new THREE.Vector3(holePos.x, 0.05, holePos.z), mole.type);
+          }
 
           // Spawn random taunt message bubble for this mole in its hole
           const tauntText = getRandomTaunt(mole.type);
@@ -1039,7 +1184,10 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
           const holePos = HOLE_COORDS[mole.holeIndex];
           if (holePos && particlesRef.current) {
             const impactPos = new THREE.Vector3(holePos.x, 0.35, holePos.z);
-            if (pizzaOvenActiveRef.current) {
+            if (mole.type === 'bomb') {
+              particlesRef.current.emitExplosion(impactPos);
+              triggerCameraShake(0.18);
+            } else if (pizzaOvenActiveRef.current) {
               // Incinerated by Pizza Oven: fiery inferno blast + massive burst of roasted pizza ingredients
               particlesRef.current.emitPizzaOvenBurn(impactPos);
               particlesRef.current.emitPizzaIngredientsBurst(impactPos, true);
@@ -1065,6 +1213,12 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
           }
         }
 
+        // Check if mole was damaged non-lethally (e.g. multi-hit mole took damage)
+        if (wasAlive && !isNowHit && mole.health !== undefined && existing.mole.health !== undefined && mole.health < existing.mole.health) {
+          existing.recoilStartTime = performance.now();
+          existing.recoilDuration = 280;
+        }
+
         // Update mole state
         existing.mole = mole;
       }
@@ -1073,6 +1227,12 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
     // Remove despawned moles and their taunt bubbles
     currentMap.forEach((item, holeIdx) => {
       if (!activeMoleHoles.has(holeIdx)) {
+        if (!item.retreated && item.mole.state !== 'hit' && item.mole.state !== 'exploded' && particlesRef.current) {
+          const holePos = HOLE_COORDS[holeIdx];
+          if (holePos) {
+            particlesRef.current.emitDisappearPoof(new THREE.Vector3(holePos.x, 0.05, holePos.z));
+          }
+        }
         scene.remove(item.mesh);
         currentMap.delete(holeIdx);
         setTauntBubbles((prev) => prev.filter((b) => b.holeIndex !== holeIdx));
@@ -1128,7 +1288,211 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
     }
   };
 
-  // Pointer Down (Whack / Smash Tap or Click)
+  // Common Whack Execution logic shared between mouse/touch and MediaPipe gesture input
+  const executeWhack = useCallback(
+    (hitPoint: THREE.Vector3, clientX: number, clientY: number, maxHitRadius: number, isTouchOrGesture: boolean): number => {
+      // Check intersection with all 9 Holes
+      let closestHoleIdx = -1;
+      let closestDist = Infinity;
+
+      HOLE_COORDS.forEach((pos, idx) => {
+        const dist = Math.hypot(hitPoint.x - pos.x, hitPoint.z - pos.z);
+        if (dist < maxHitRadius && dist < closestDist) {
+          closestDist = dist;
+          closestHoleIdx = idx;
+        }
+      });
+
+      // Compute hammer target: lock directly onto the hole if tapped near a hole, or hitPoint
+      const hammerTarget = new THREE.Vector3();
+      if (closestHoleIdx !== -1) {
+        const holeCoord = HOLE_COORDS[closestHoleIdx];
+        hammerTarget.set(holeCoord.x + 0.25, 1.15, holeCoord.z + 0.25);
+      } else {
+        hammerTarget.set(hitPoint.x + 0.25, 1.15, hitPoint.z + 0.25);
+      }
+
+      // Trigger fluid Hammer Swing directly AT the target position
+      if (hammerCtrlRef.current) {
+        hammerCtrlRef.current.swingAt(hammerTarget, isTouchOrGesture);
+      }
+
+      // Flour puff emitted onto the prep table at click location
+      if (particlesRef.current && hitPoint) {
+        particlesRef.current.emitFlourCloud(new THREE.Vector3(hitPoint.x, 0.08, hitPoint.z), false, 6);
+      }
+
+      if (closestHoleIdx !== -1) {
+        const holeCoord = HOLE_COORDS[closestHoleIdx];
+        const moleItem = moleMeshesRef.current.get(closestHoleIdx);
+
+        if (moleItem && moleItem.mole.state !== 'hit' && moleItem.mole.state !== 'exploded') {
+          const { mole } = moleItem;
+          const isCrit = Math.random() < selectedHammer.critChance;
+          const isDefeated = mole.health <= selectedHammer.damage;
+
+          if (!isDefeated) {
+            moleItem.recoilStartTime = performance.now();
+            moleItem.recoilDuration = 280;
+          }
+
+          // Immediate 2D Canvas Particle Explosion Effect with mole-type specific colors
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const hitX = clientX - rect.left;
+            const hitY = clientY - rect.top;
+            particleCanvasRef.current?.triggerExplosion(hitX, hitY, mole.type, isCrit, isDefeated);
+            lastExplosionTimeRef.current = Date.now();
+          }
+
+          // Immediate reaction upon being whacked
+          const hitReactions = ['Ouch!', 'Bonk!', 'Mamma Mia!', 'D\'oh!', 'Ow!', 'Got me!'];
+          const hitText = mole.type === 'bomb' ? 'BOOM!' : hitReactions[Math.floor(Math.random() * hitReactions.length)];
+          setTauntBubbles((prev) =>
+            prev.map((b) =>
+              b.holeIndex === closestHoleIdx
+                ? { ...b, text: hitText, isHit: true, icon: mole.type === 'bomb' ? '💥' : '💫' }
+                : b
+            )
+          );
+          setTimeout(() => {
+            setTauntBubbles((prev) => prev.filter((b) => b.holeIndex !== closestHoleIdx));
+          }, 450);
+
+          // Particle Bursts and Sound FX based on Mole Type
+          const impactPos = new THREE.Vector3(holeCoord.x, 0.4, holeCoord.z);
+
+          if (mole.type === 'bomb') {
+            // Lightweight bomb explosion redesign: omit pizza ingredients, only emit explosion
+            particlesRef.current?.emitExplosion(impactPos);
+            triggerCameraShake(0.18);
+            sfx.playExplosion();
+          } else {
+            // Always trigger signature Pizza Kitchen trio for edible moles: Flour clouds, Tomato sauce splashes, and Oregano sparkles
+            particlesRef.current?.emitPizzaKitchenHit(impactPos, isCrit || pizzaOvenActiveRef.current);
+            particlesRef.current?.emitPizzaIngredientsBurst(impactPos, isCrit || pizzaOvenActiveRef.current);
+
+            if (pizzaOvenActiveRef.current) {
+              particlesRef.current?.emitPizzaOvenBurn(impactPos);
+            }
+          }
+
+          if (mole.type === 'fast') {
+            particlesRef.current?.emitLightningSparks(impactPos);
+            particlesRef.current?.emitHitSparks(impactPos, true, 0x38bdf8);
+            triggerCameraShake(0.18);
+            sfx.playFastWhoosh();
+            sfx.playWhack(true);
+          } else if (mole.type === 'tough') {
+            const isLethal = mole.health <= 1;
+            particlesRef.current?.emitArmorChipped(impactPos, isLethal);
+            particlesRef.current?.emitHitSparks(impactPos, true, 0x94a3b8);
+            if (isLethal) {
+              particlesRef.current?.emitPizzaSlices(impactPos, 4);
+            }
+            triggerCameraShake(isLethal ? 0.35 : 0.2);
+            if (isLethal) {
+              sfx.playArmorBreak();
+            } else {
+              sfx.playMetalClang();
+            }
+          } else if (mole.type === 'helmet') {
+            const isLethal = mole.health <= 1;
+            particlesRef.current?.emitArmorChipped(impactPos, isLethal);
+            particlesRef.current?.emitHitSparks(impactPos, true, 0xf59e0b);
+            triggerCameraShake(isLethal ? 0.25 : 0.18);
+            sfx.playHelmetHit(isLethal);
+          } else if (mole.type === 'frost') {
+            particlesRef.current?.emitFrostShards(impactPos);
+            triggerCameraShake(0.2);
+            sfx.playFrostHit();
+          } else if (mole.type === 'golden') {
+            particlesRef.current?.emitCoins(impactPos, 10);
+            particlesRef.current?.emitPizzaSlices(impactPos, 8);
+            particlesRef.current?.emitHitSparks(impactPos, true, 0xfef08a);
+            triggerCameraShake(0.25);
+            sfx.playGoldenHit();
+          } else if (mole.type === 'rainbow') {
+            particlesRef.current?.emitRainbowBurst(impactPos);
+            triggerCameraShake(0.2);
+            sfx.playPowerup();
+            sfx.playWhack(true);
+          } else if (mole.type === 'phantom') {
+            particlesRef.current?.emitPhantomMist(impactPos);
+            triggerCameraShake(0.15);
+            sfx.playPhantomDisappear();
+          } else if (mole.type === 'boss') {
+            particlesRef.current?.emitBossRoar(impactPos);
+            particlesRef.current?.emitHitSparks(impactPos, true, 0xef4444);
+            triggerCameraShake(0.4);
+            sfx.playBossRoar();
+            sfx.playWhack(true);
+          } else if (selectedHammer.specialEffect === 'fire_burst') {
+            particlesRef.current?.emitFireEmbers(impactPos);
+            triggerCameraShake(0.2);
+            sfx.playFireBurst();
+          } else if (selectedHammer.specialEffect === 'freeze_wave') {
+            particlesRef.current?.emitFrostShards(impactPos);
+            triggerCameraShake(0.15);
+            sfx.playFreeze();
+          } else if (selectedHammer.specialEffect === 'lightning') {
+            particlesRef.current?.emitLightningSparks(impactPos);
+            triggerCameraShake(0.22);
+            sfx.playLightning();
+          } else {
+            if (isCrit) {
+              particlesRef.current?.emitPizzaSlices(impactPos, 5);
+            }
+            particlesRef.current?.emitHitSparks(impactPos, isCrit);
+            triggerCameraShake(isCrit ? 0.22 : 0.1);
+            if (selectedHammer.headShape === 'uslero' || selectedHammer.headShape === 'cylinder') {
+              sfx.playUsleroSmash(isCrit);
+            } else {
+              sfx.playWhack(isCrit);
+            }
+          }
+        }
+
+        onHitHole(closestHoleIdx, clientX, clientY);
+      }
+
+      return closestHoleIdx;
+    },
+    [onHitHole, selectedHammer]
+  );
+
+  // Imperative handle for MediaPipe Gesture integration without React re-render lag
+  useImperativeHandle(
+    ref,
+    () => ({
+      setGestureCursor(ndcX: number, ndcY: number) {
+        if (!cameraRef.current || !hammerCtrlRef.current) return;
+        mouseRef.current.set(ndcX, ndcY);
+        raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+        const hitPoint = new THREE.Vector3();
+        const intersects = raycasterRef.current.ray.intersectPlane(planeIntersectRef.current, hitPoint);
+        if (intersects) {
+          hammerCtrlRef.current.setTarget(new THREE.Vector3(hitPoint.x + 0.25, 1.15, hitPoint.z + 0.25));
+        }
+      },
+      triggerGestureWhack(ndcX: number, ndcY: number, clientX: number, clientY: number): number {
+        if (!cameraRef.current || !sceneRef.current) return -1;
+        mouseRef.current.set(ndcX, ndcY);
+        raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+        const hitPoint = new THREE.Vector3();
+        const intersects = raycasterRef.current.ray.intersectPlane(planeIntersectRef.current, hitPoint);
+        if (!intersects) return -1;
+        // Ergonomic 1.75 hit radius for air gestures
+        return executeWhack(hitPoint, clientX, clientY, 1.75, true);
+      },
+      setGestureActive(_active: boolean) {
+        // Can be used for custom gesture visual states
+      },
+    }),
+    [executeWhack]
+  );
+
+  // Pointer Down (Whack / Smash Tap or Click for Classic Mode)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!containerRef.current || !cameraRef.current || !sceneRef.current) return;
     const isTouch = e.pointerType === 'touch';
@@ -1141,168 +1505,8 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
 
     const hitPoint = new THREE.Vector3();
     raycasterRef.current.ray.intersectPlane(planeIntersectRef.current, hitPoint);
-
-    // Check intersection with all 9 Holes
-    let closestHoleIdx = -1;
-    let closestDist = Infinity;
-    // On touch screens, fingers have a wider contact area than a desktop mouse
     const maxHitRadius = isTouch ? 1.65 : 1.35;
-
-    HOLE_COORDS.forEach((pos, idx) => {
-      const dist = Math.hypot(hitPoint.x - pos.x, hitPoint.z - pos.z);
-      if (dist < maxHitRadius && dist < closestDist) {
-        closestDist = dist;
-        closestHoleIdx = idx;
-      }
-    });
-
-    // Compute hammer target: lock directly onto the hole if tapped near a hole, or hitPoint
-    const hammerTarget = new THREE.Vector3();
-    if (closestHoleIdx !== -1) {
-      const holeCoord = HOLE_COORDS[closestHoleIdx];
-      hammerTarget.set(holeCoord.x + 0.25, 1.15, holeCoord.z + 0.25);
-    } else {
-      hammerTarget.set(hitPoint.x + 0.25, 1.15, hitPoint.z + 0.25);
-    }
-
-    // Trigger fluid Hammer Swing directly AT the target position with mobile swoop
-    if (hammerCtrlRef.current) {
-      hammerCtrlRef.current.swingAt(hammerTarget, isTouch);
-    }
-
-    // Flour puff emitted onto the prep table at click location
-    if (particlesRef.current && hitPoint) {
-      particlesRef.current.emitFlourCloud(new THREE.Vector3(hitPoint.x, 0.08, hitPoint.z), false, 6);
-    }
-
-    if (closestHoleIdx !== -1) {
-      const holeCoord = HOLE_COORDS[closestHoleIdx];
-      const moleItem = moleMeshesRef.current.get(closestHoleIdx);
-
-      if (moleItem && moleItem.mole.state !== 'hit' && moleItem.mole.state !== 'exploded') {
-        const { mole } = moleItem;
-        const isCrit = Math.random() < selectedHammer.critChance;
-        const isDefeated = mole.health <= selectedHammer.damage;
-
-        // Immediate 2D Canvas Particle Explosion Effect with mole-type specific colors
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          const hitX = e.clientX - rect.left;
-          const hitY = e.clientY - rect.top;
-          particleCanvasRef.current?.triggerExplosion(hitX, hitY, mole.type, isCrit, isDefeated);
-          lastExplosionTimeRef.current = Date.now();
-        }
-
-        // Immediate reaction upon being whacked
-        const hitReactions = ['Ouch!', 'Bonk!', 'Mamma Mia!', 'D\'oh!', 'Ow!', 'Got me!'];
-        const hitText = mole.type === 'bomb' ? 'BOOM!' : hitReactions[Math.floor(Math.random() * hitReactions.length)];
-        setTauntBubbles((prev) =>
-          prev.map((b) =>
-            b.holeIndex === closestHoleIdx
-              ? { ...b, text: hitText, isHit: true, icon: mole.type === 'bomb' ? '💥' : '💫' }
-              : b
-          )
-        );
-        setTimeout(() => {
-          setTauntBubbles((prev) => prev.filter((b) => b.holeIndex !== closestHoleIdx));
-        }, 450);
-
-        // Particle Bursts and Sound FX based on Mole Type
-        const impactPos = new THREE.Vector3(holeCoord.x, 0.4, holeCoord.z);
-
-        // Always trigger signature Pizza Kitchen trio: Flour clouds, Tomato sauce splashes, and Oregano sparkles
-        particlesRef.current?.emitPizzaKitchenHit(impactPos, isCrit || pizzaOvenActiveRef.current);
-        particlesRef.current?.emitPizzaIngredientsBurst(impactPos, isCrit || pizzaOvenActiveRef.current);
-
-        if (pizzaOvenActiveRef.current) {
-          particlesRef.current?.emitPizzaOvenBurn(impactPos);
-        }
-
-        if (mole.type === 'bomb') {
-          particlesRef.current?.emitExplosion(impactPos);
-          triggerCameraShake(0.45);
-          sfx.playExplosion();
-        } else if (mole.type === 'fast') {
-          particlesRef.current?.emitLightningSparks(impactPos);
-          particlesRef.current?.emitHitSparks(impactPos, true, 0x38bdf8);
-          triggerCameraShake(0.18);
-          sfx.playFastWhoosh();
-          sfx.playWhack(true);
-        } else if (mole.type === 'tough') {
-          const isLethal = mole.health <= 1;
-          particlesRef.current?.emitArmorChipped(impactPos, isLethal);
-          particlesRef.current?.emitHitSparks(impactPos, true, 0x94a3b8);
-          if (isLethal) {
-            particlesRef.current?.emitPizzaSlices(impactPos, 4);
-          }
-          triggerCameraShake(isLethal ? 0.35 : 0.2);
-          if (isLethal) {
-            sfx.playArmorBreak();
-          } else {
-            sfx.playMetalClang();
-          }
-        } else if (mole.type === 'helmet') {
-          const isLethal = mole.health <= 1;
-          particlesRef.current?.emitArmorChipped(impactPos, isLethal);
-          particlesRef.current?.emitHitSparks(impactPos, true, 0xf59e0b);
-          triggerCameraShake(isLethal ? 0.25 : 0.18);
-          if (isLethal) {
-            sfx.playArmorBreak();
-          } else {
-            sfx.playMetalClang();
-          }
-        } else if (mole.type === 'golden') {
-          particlesRef.current?.emitCoins(impactPos, 10);
-          particlesRef.current?.emitPizzaSlices(impactPos, 8);
-          particlesRef.current?.emitHitSparks(impactPos, true, 0xfef08a);
-          triggerCameraShake(0.25);
-          sfx.playCoin();
-        } else if (mole.type === 'rainbow') {
-          particlesRef.current?.emitPrismaticBurst(impactPos);
-          particlesRef.current?.emitPizzaSlices(impactPos, 10);
-          particlesRef.current?.emitCoins(impactPos, 12);
-          triggerCameraShake(0.3);
-          sfx.playRainbowChime();
-        } else if (mole.type === 'phantom') {
-          particlesRef.current?.emitPhantomGlow(impactPos);
-          particlesRef.current?.emitHitSparks(impactPos, true, 0xc084fc);
-          triggerCameraShake(0.2);
-          sfx.playPhantomPhase();
-          sfx.playWhack(true);
-        } else if (mole.type === 'boss') {
-          const isLethal = mole.health <= 1;
-          if (isLethal) {
-            particlesRef.current?.emitBossShockwave(impactPos);
-            particlesRef.current?.emitPizzaSlices(impactPos, 16);
-            particlesRef.current?.emitCoins(impactPos, 20);
-            triggerCameraShake(0.5);
-            sfx.playBossRoar();
-          } else {
-            particlesRef.current?.emitHitSparks(impactPos, true, 0xef4444);
-            particlesRef.current?.emitArmorChipped(impactPos, false);
-            triggerCameraShake(0.25);
-            sfx.playMetalClang();
-          }
-        } else if (mole.type === 'frost') {
-          particlesRef.current?.emitFrostShards(impactPos);
-          triggerCameraShake(0.15);
-          sfx.playFrost();
-        } else {
-          if (isCrit) {
-            particlesRef.current?.emitPizzaSlices(impactPos, 5);
-          }
-          particlesRef.current?.emitHitSparks(impactPos, isCrit);
-          triggerCameraShake(isCrit ? 0.22 : 0.1);
-          if (selectedHammer.headShape === 'uslero' || selectedHammer.headShape === 'cylinder') {
-            sfx.playUsleroSmash(isCrit);
-          } else {
-            sfx.playWhack(isCrit);
-          }
-        }
-      }
-
-      onHitHole(closestHoleIdx, e.clientX, e.clientY);
-    }
+    executeWhack(hitPoint, e.clientX, e.clientY, maxHitRadius, isTouch);
   };
 
   return (
@@ -1466,4 +1670,7 @@ export const MoleScene3D: React.FC<MoleScene3DProps> = ({
       )}
     </div>
   );
-};
+});
+
+MoleScene3D.displayName = 'MoleScene3D';
+

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Swords,
   ShoppingBag,
@@ -25,26 +26,60 @@ import {
   FloatingText,
   MultiplayerRoom,
   PushNotification,
+  ControlMode,
+  HandCursorData,
+  HandTrackingStatus,
 } from './types';
 import { storageService, DEFAULT_HAMMERS, DEFAULT_POWERUPS } from './services/storage';
 import { sfx } from './services/sfx';
 import { dynamicSoundtrack } from './services/soundtrack';
 import { multiplayerClient } from './services/multiplayer';
 
-import { MoleScene3D } from './components/game3d/MoleScene3D';
+import { MoleScene3D, MoleScene3DRef } from './components/game3d/MoleScene3D';
+import { useHandTracking } from './hooks/useHandTracking';
+import { ModeSelector } from './components/ui/ModeSelector';
 import { GameHUD } from './components/ui/GameHUD';
-import { MultiplayerLobby } from './components/ui/MultiplayerLobby';
 import { MultiplayerMatchOverlay } from './components/ui/MultiplayerMatchOverlay';
-import { ShopModal } from './components/ui/ShopModal';
-import { AvatarCustomizer } from './components/ui/AvatarCustomizer';
-import { LeaderboardModal } from './components/ui/LeaderboardModal';
-import { EventsAndChallengesModal } from './components/ui/EventsAndChallengesModal';
 import { PushNotificationsToast } from './components/ui/PushNotificationsToast';
-import { PauseAndSettingsModal } from './components/ui/PauseAndSettingsModal';
-import { GameOverModal } from './components/ui/GameOverModal';
-import { MoleCodexModal } from './components/modals/MoleCodexModal';
-import { PizzaRecipeCodex } from './components/modals/PizzaRecipeCodex';
 import { ChefIdleCharacter } from './components/ui/ChefIdleCharacter';
+
+// Lazy-loaded camera and modal views for optimal initial bundle size and code-splitting
+const CameraPiPView = React.lazy(() =>
+  import('./components/camera/CameraPiPView').then((m) => ({ default: m.CameraPiPView }))
+);
+const GestureReticle = React.lazy(() =>
+  import('./components/camera/GestureReticle').then((m) => ({ default: m.GestureReticle }))
+);
+const CameraTutorialModal = React.lazy(() =>
+  import('./components/camera/CameraTutorialModal').then((m) => ({ default: m.CameraTutorialModal }))
+);
+const MultiplayerLobby = React.lazy(() =>
+  import('./components/ui/MultiplayerLobby').then((m) => ({ default: m.MultiplayerLobby }))
+);
+const ShopModal = React.lazy(() =>
+  import('./components/ui/ShopModal').then((m) => ({ default: m.ShopModal }))
+);
+const AvatarCustomizer = React.lazy(() =>
+  import('./components/ui/AvatarCustomizer').then((m) => ({ default: m.AvatarCustomizer }))
+);
+const LeaderboardModal = React.lazy(() =>
+  import('./components/ui/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
+);
+const EventsAndChallengesModal = React.lazy(() =>
+  import('./components/ui/EventsAndChallengesModal').then((m) => ({ default: m.EventsAndChallengesModal }))
+);
+const PauseAndSettingsModal = React.lazy(() =>
+  import('./components/ui/PauseAndSettingsModal').then((m) => ({ default: m.PauseAndSettingsModal }))
+);
+const GameOverModal = React.lazy(() =>
+  import('./components/ui/GameOverModal').then((m) => ({ default: m.GameOverModal }))
+);
+const MoleCodexModal = React.lazy(() =>
+  import('./components/modals/MoleCodexModal').then((m) => ({ default: m.MoleCodexModal }))
+);
+const PizzaRecipeCodex = React.lazy(() =>
+  import('./components/modals/PizzaRecipeCodex').then((m) => ({ default: m.PizzaRecipeCodex }))
+);
 import {
   rollIngredientDropForMole,
   calculateRecipeBuffs,
@@ -58,6 +93,46 @@ export default function App() {
   const [activeModal, setActiveModal] = useState<
     'shop' | 'avatar' | 'leaderboard' | 'events' | 'settings' | 'codex' | 'pizza_codex' | null
   >(null);
+
+  // 1b. Vision & Control Mode State ('classic' | 'camera')
+  const [controlMode, setControlMode] = useState<ControlMode>(() => profile.settings.controlMode || 'classic');
+  const [showCameraTutorial, setShowCameraTutorial] = useState<boolean>(false);
+  const moleSceneRef = useRef<MoleScene3DRef | null>(null);
+
+  const handleSetControlMode = useCallback((mode: ControlMode) => {
+    setControlMode(mode);
+    if (mode === 'camera') {
+      try {
+        const completed = typeof window !== 'undefined' && localStorage.getItem('whackamole_camera_tutorial_completed') === 'true';
+        if (!completed) {
+          setShowCameraTutorial(true);
+        }
+      } catch {}
+    }
+    setProfile((prev) => {
+      const updated = {
+        ...prev,
+        settings: {
+          ...prev.settings,
+          controlMode: mode,
+        },
+      };
+      storageService.saveProfile(updated);
+      return updated;
+    });
+  }, []);
+
+  // Auto-prompt camera tutorial on camera mode if not yet completed
+  useEffect(() => {
+    if (controlMode === 'camera') {
+      try {
+        const completed = typeof window !== 'undefined' && localStorage.getItem('whackamole_camera_tutorial_completed') === 'true';
+        if (!completed) {
+          setShowCameraTutorial(true);
+        }
+      } catch {}
+    }
+  }, [controlMode]);
 
   // 2. Game Lifecycle State
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'paused' | 'gameover' | 'multiplayer_lobby'>('menu');
@@ -83,6 +158,8 @@ export default function App() {
   const [screenShake, setScreenShake] = useState<{ x: number; y: number; rotate: number }>({ x: 0, y: 0, rotate: 0 });
   const [screenShakeClass, setScreenShakeClass] = useState<string>('');
   const [screenShakeTrigger, setScreenShakeTrigger] = useState<{ intensity: number; timestamp: number }>({ intensity: 0, timestamp: 0 });
+  const [isPlayHoveredByHand, setIsPlayHoveredByHand] = useState(false);
+  const handleStartArcadeRef = useRef<(mode?: GameMode) => void>(() => {});
   const [particleExplosionTrigger, setParticleExplosionTrigger] = useState<{
     x: number;
     y: number;
@@ -122,13 +199,13 @@ export default function App() {
     if (shakeClassTimerRef.current) clearTimeout(shakeClassTimerRef.current);
     shakeClassTimerRef.current = setTimeout(() => {
       setScreenShakeClass('');
-    }, 450);
+    }, intensity >= 15 ? 450 : 250);
 
     // 4. Dynamic Physics-Damped Frame Loop (additive accumulation for rapid combos)
     shakeMagnitudeRef.current = Math.min(32, Math.max(shakeMagnitudeRef.current, intensity) * 1.15);
 
     if (shakeAnimRef.current === null) {
-      const decay = 0.85;
+      const decay = 0.76; // Dampened decay: settles smoothly within ~200ms without frame drops
       const step = () => {
         if (shakeMagnitudeRef.current < 0.25) {
           shakeMagnitudeRef.current = 0;
@@ -218,9 +295,111 @@ export default function App() {
   const selectedHammer = DEFAULT_HAMMERS.find((h) => h.id === profile.selectedHammerId) || DEFAULT_HAMMERS[0];
 
   // Save profile changes automatically
-  const handleUpdateProfile = useCallback((updated: UserProfile) => {
-    setProfile(updated);
-    storageService.saveProfile(updated);
+  const handleUpdateProfile = useCallback(
+    (updated: UserProfile) => {
+      setProfile(updated);
+      if (updated.settings.controlMode && updated.settings.controlMode !== controlMode) {
+        setControlMode(updated.settings.controlMode);
+      }
+      storageService.saveProfile(updated);
+    },
+    [controlMode]
+  );
+
+  // Hand Tracking Handlers for 60 FPS Cursor and Whack Actions
+  const handleCameraCursorMove = useCallback((cursor: HandCursorData) => {
+    // Only update 3D hammer cursor when playing or on ready menu
+    if (gameState === 'playing' || (gameState === 'menu' && !showCameraTutorial && !activeModal)) {
+      moleSceneRef.current?.setGestureCursor(cursor.ndcX, cursor.ndcY);
+    }
+
+    // R3: Only test hover against #btn_play_arcade when in menu AND no modal or tutorial is active
+    if (gameState === 'menu' && !showCameraTutorial && !activeModal) {
+      const btn = document.getElementById('btn_play_arcade');
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        const isHover =
+          cursor.clientX >= rect.left - 12 &&
+          cursor.clientX <= rect.right + 12 &&
+          cursor.clientY >= rect.top - 12 &&
+          cursor.clientY <= rect.bottom + 12;
+        setIsPlayHoveredByHand(isHover);
+      } else {
+        setIsPlayHoveredByHand(false);
+      }
+    } else {
+      setIsPlayHoveredByHand(false);
+    }
+  }, [gameState, showCameraTutorial, activeModal]);
+
+  const handleCameraWhack = useCallback(
+    (cursor: HandCursorData) => {
+      // Disallow all air whacks if any modal/tutorial is open, or if paused/gameover/lobby
+      if (showCameraTutorial || activeModal || gameState === 'paused' || gameState === 'gameover' || gameState === 'multiplayer_lobby') {
+        return;
+      }
+
+      if (gameState === 'playing') {
+        sfx.playGestureConfirm();
+        moleSceneRef.current?.triggerGestureWhack(cursor.ndcX, cursor.ndcY, cursor.clientX, cursor.clientY);
+      } else if (gameState === 'menu') {
+        // R3: Hit testing against play button (#btn_play_arcade) using getBoundingClientRect
+        const btn = document.getElementById('btn_play_arcade');
+        let isPlayHit = false;
+        if (btn) {
+          const rect = btn.getBoundingClientRect();
+          if (
+            cursor.clientX >= rect.left - 16 &&
+            cursor.clientX <= rect.right + 16 &&
+            cursor.clientY >= rect.top - 16 &&
+            cursor.clientY <= rect.bottom + 16
+          ) {
+            isPlayHit = true;
+          }
+        }
+        if (!isPlayHit) {
+          const el = document.elementFromPoint(cursor.clientX, cursor.clientY);
+          if (el?.closest('#btn_play_arcade')) {
+            isPlayHit = true;
+          }
+        }
+        if (isPlayHit) {
+          sfx.playGestureConfirm();
+          setIsPlayHoveredByHand(false);
+          handleStartArcadeRef.current('arcade');
+        }
+      }
+    },
+    [gameState, showCameraTutorial, activeModal]
+  );
+
+  const handTracking = useHandTracking({
+    enabled: controlMode === 'camera',
+    onCursorMove: handleCameraCursorMove,
+    onWhack: handleCameraWhack,
+  });
+
+  // Camera tracking auditory feedback when status transitions to 'tracking'
+  const prevTrackingStatusRef = useRef<HandTrackingStatus>('idle');
+  useEffect(() => {
+    if (prevTrackingStatusRef.current !== 'tracking' && handTracking.status === 'tracking') {
+      sfx.playCameraActivate();
+    }
+    prevTrackingStatusRef.current = handTracking.status;
+  }, [handTracking.status]);
+
+  // Start ambient soundtrack on mount and unlock on first user interaction
+  useEffect(() => {
+    dynamicSoundtrack.start('menu');
+    const handleFirstInteraction = () => {
+      dynamicSoundtrack.resume();
+    };
+    window.addEventListener('pointerdown', handleFirstInteraction, { once: true });
+    window.addEventListener('keydown', handleFirstInteraction, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
   }, []);
 
   // Update Soundtrack & Audio Preferences
@@ -229,13 +408,13 @@ export default function App() {
     dynamicSoundtrack.setVolume(profile.settings.musicVolume);
   }, [profile.settings.soundVolume, profile.settings.musicVolume]);
 
-  // Sync Dynamic Soundtrack in real-time with Game State
+  // Sync Dynamic Soundtrack in real-time with Game State: gameplay music vs menu ambient loop
   useEffect(() => {
     if (gameState === 'playing') {
-      dynamicSoundtrack.start();
+      dynamicSoundtrack.start('gameplay');
       dynamicSoundtrack.updateGameState(timeRemaining, 60, combo, frenzyActive);
     } else {
-      dynamicSoundtrack.stop();
+      dynamicSoundtrack.start('menu');
     }
   }, [gameState, timeRemaining, combo, frenzyActive]);
 
@@ -614,8 +793,10 @@ export default function App() {
     setActivePowerups({});
     setMoles([]);
     setFloatingTexts([]);
+    setIsPlayHoveredByHand(false);
     setGameState('playing');
   };
+  handleStartArcadeRef.current = handleStartArcade;
 
   // Handle User Whack on 3D Stage
   const handleHitHole = (holeIndex: number, clientX: number, clientY: number) => {
@@ -635,13 +816,13 @@ export default function App() {
           // Defended by shield!
           addFloatingText('SHIELD BLOCKED!', clientX, clientY, '#10b981', 1.2);
           setActivePowerups((prev) => ({ ...prev, bomb_shield: Math.max(0, (prev['bomb_shield'] || 0) - 1) }));
-          triggerScreenShake(7.0);
+          triggerScreenShake(3.5);
         } else {
           setScore((s) => Math.max(0, s - 250));
           setCombo(0);
           setBombsHit((b) => b + 1);
           addFloatingText('-250 💥 BOMB!', clientX, clientY, '#ef4444', 1.4);
-          triggerScreenShake(15.0);
+          triggerScreenShake(6.5);
         }
         mole.state = 'exploded';
         setParticleExplosionTrigger({
@@ -901,136 +1082,145 @@ export default function App() {
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-orange-900/10 pointer-events-none z-0"></div>
 
       {/* 1. TOP GLOBAL NAVIGATION & STATUS BAR (Visible only in Menu Hub) */}
-      {gameState === 'menu' && (
-        <header className="relative z-30 flex items-center justify-between px-4 md:px-6 py-3 bg-slate-900/85 backdrop-blur-xl border-b border-white/10 shadow-xl">
-          {/* Brand, Avatar & Level Progress */}
-          <div className="flex items-center space-x-3 md:space-x-4">
-            <div
-              onClick={() => {
-                sfx.playButtonClick();
-                setActiveModal('avatar');
-              }}
-              className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gradient-to-tr from-orange-500 to-yellow-300 border-2 border-white/20 shadow-[0_0_15px_rgba(249,115,22,0.4)] flex items-center justify-center text-lg md:text-xl font-black text-slate-900 cursor-pointer hover:scale-105 transition-transform"
-              title="Edit Avatar"
-            >
-              {profile.name ? profile.name.slice(0, 2).toUpperCase() : 'WM'}
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm md:text-base font-bold leading-tight text-white">{profile.name}</h2>
-                <div className="hidden sm:flex items-center text-[10px] text-orange-400 space-x-1.5">
-                  <span className="bg-slate-800 px-2 py-0.5 rounded font-black tracking-wider border border-white/5">
-                    LVL {profile.level}
-                  </span>
-                  <span className="text-slate-600">•</span>
-                  <span className="uppercase tracking-wider font-semibold text-slate-400">{profile.avatar.title}</span>
-                </div>
-              </div>
-              <div className="sm:hidden flex items-center text-[10px] text-orange-400 gap-1.5 mt-0.5">
-                <span className="bg-slate-800 px-1.5 py-0.2 rounded font-black">LVL {profile.level}</span>
-                <span className="text-slate-400 truncate max-w-[80px]">{profile.avatar.title}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Center/Right: Currency & Stats Card in Immersive UI Style */}
-          <div className="flex items-center space-x-2 md:space-x-4">
-            <div className="flex items-center bg-slate-800/80 backdrop-blur-md px-3 sm:px-5 py-1.5 sm:py-2 rounded-2xl border border-white/10 shadow-lg">
-              {/* Coins / Credits */}
-              <div className="flex flex-col items-center px-2 sm:px-4 border-r border-slate-700/80">
-                <span className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-tighter">Credits</span>
-                <span className="text-sm sm:text-lg font-black text-yellow-400 font-mono">
-                  {profile.coins.toLocaleString()}
-                </span>
-              </div>
-
-              {/* Gems / Global Rank */}
-              <div className="flex flex-col items-center px-2 sm:px-4">
-                <span className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-tighter">Rank</span>
-                <span className="text-sm sm:text-lg font-black text-indigo-400 font-mono">
-                  #{Math.max(1, 1500 - profile.level * 18 - Math.floor(profile.highScore / 200))}
-                </span>
-              </div>
-            </div>
-
-            {/* Modal Action Buttons */}
-            <div className="flex items-center space-x-1 sm:space-x-2">
-              <button
-                id="nav_btn_shop"
-                onClick={() => {
-                  sfx.playButtonClick();
-                  setActiveModal('shop');
-                }}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(245,158,11,0.3)] transition"
-                title="Armory & Shop"
-              >
-                <ShoppingBag className="w-4 h-4" />
-              </button>
-
-              <button
-                id="nav_btn_avatar"
+      <AnimatePresence>
+        {gameState === 'menu' && (
+          <motion.header
+            key="global-menu-header"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.22 }}
+            className="relative z-30 flex items-center justify-between px-4 md:px-6 py-3 bg-slate-900/85 backdrop-blur-xl border-b border-white/10 shadow-xl"
+          >
+            {/* Brand, Avatar & Level Progress */}
+            <div className="flex items-center space-x-3 md:space-x-4">
+              <div
                 onClick={() => {
                   sfx.playButtonClick();
                   setActiveModal('avatar');
                 }}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(6,182,212,0.3)] transition"
-                title="Avatar Customizer"
+                className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gradient-to-tr from-orange-500 to-yellow-300 border-2 border-white/20 shadow-[0_0_15px_rgba(249,115,22,0.4)] flex items-center justify-center text-lg md:text-xl font-black text-slate-900 cursor-pointer hover:scale-105 transition-transform"
+                title="Edit Avatar"
               >
-                <User className="w-4 h-4" />
-              </button>
+                {profile.name ? profile.name.slice(0, 2).toUpperCase() : 'WM'}
+              </div>
 
-              <button
-                id="nav_btn_codex"
-                onClick={() => {
-                  sfx.playButtonClick();
-                  setActiveModal('codex');
-                }}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(52,211,153,0.3)] transition"
-                title="Mole Field Guide & Codex"
-              >
-                <Zap className="w-4 h-4" />
-              </button>
-
-              <button
-                id="nav_btn_leaderboard"
-                onClick={() => {
-                  sfx.playButtonClick();
-                  setActiveModal('leaderboard');
-                }}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-yellow-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(234,179,8,0.3)] transition"
-                title="Leaderboards"
-              >
-                <Trophy className="w-4 h-4" />
-              </button>
-
-              <button
-                id="nav_btn_events"
-                onClick={() => {
-                  sfx.playButtonClick();
-                  setActiveModal('events');
-                }}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-purple-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition"
-                title="Events & Challenges"
-              >
-                <Calendar className="w-4 h-4" />
-              </button>
-
-              <button
-                id="nav_btn_settings"
-                onClick={() => {
-                  sfx.playButtonClick();
-                  setActiveModal('settings');
-                }}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center border border-white/10 shadow-sm transition"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm md:text-base font-bold leading-tight text-white">{profile.name}</h2>
+                  <div className="hidden sm:flex items-center text-[10px] text-orange-400 space-x-1.5">
+                    <span className="bg-slate-800 px-2 py-0.5 rounded font-black tracking-wider border border-white/5">
+                      LVL {profile.level}
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className="uppercase tracking-wider font-semibold text-slate-400">{profile.avatar.title}</span>
+                  </div>
+                </div>
+                <div className="sm:hidden flex items-center text-[10px] text-orange-400 gap-1.5 mt-0.5">
+                  <span className="bg-slate-800 px-1.5 py-0.2 rounded font-black">LVL {profile.level}</span>
+                  <span className="text-slate-400 truncate max-w-[80px]">{profile.avatar.title}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </header>
-      )}
+
+            {/* Center/Right: Currency & Stats Card in Immersive UI Style */}
+            <div className="flex items-center space-x-2 md:space-x-4">
+              <div className="flex items-center bg-slate-800/80 backdrop-blur-md px-3 sm:px-5 py-1.5 sm:py-2 rounded-2xl border border-white/10 shadow-lg">
+                {/* Coins / Credits */}
+                <div className="flex flex-col items-center px-2 sm:px-4 border-r border-slate-700/80">
+                  <span className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-tighter">Credits</span>
+                  <span className="text-sm sm:text-lg font-black text-yellow-400 font-mono">
+                    {profile.coins.toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Gems / Global Rank */}
+                <div className="flex flex-col items-center px-2 sm:px-4">
+                  <span className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-tighter">Rank</span>
+                  <span className="text-sm sm:text-lg font-black text-indigo-400 font-mono">
+                    #{Math.max(1, 1500 - profile.level * 18 - Math.floor(profile.highScore / 200))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div className="flex items-center space-x-1 sm:space-x-2">
+                <button
+                  id="nav_btn_shop"
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('shop');
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(245,158,11,0.3)] transition"
+                  title="Armory & Shop"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                </button>
+
+                <button
+                  id="nav_btn_avatar"
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('avatar');
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(6,182,212,0.3)] transition"
+                  title="Avatar Customizer"
+                >
+                  <User className="w-4 h-4" />
+                </button>
+
+                <button
+                  id="nav_btn_codex"
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('codex');
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(52,211,153,0.3)] transition"
+                  title="Mole Field Guide & Codex"
+                >
+                  <Zap className="w-4 h-4" />
+                </button>
+
+                <button
+                  id="nav_btn_leaderboard"
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('leaderboard');
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-yellow-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(234,179,8,0.3)] transition"
+                  title="Leaderboards"
+                >
+                  <Trophy className="w-4 h-4" />
+                </button>
+
+                <button
+                  id="nav_btn_events"
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('events');
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-purple-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition"
+                  title="Events & Challenges"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+
+                <button
+                  id="nav_btn_settings"
+                  onClick={() => {
+                    sfx.playButtonClick();
+                    setActiveModal('settings');
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center border border-white/10 shadow-sm transition"
+                  title="Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </motion.header>
+        )}
+      </AnimatePresence>
 
       {/* 2. MAIN 3D GAME STAGE VIEWPORT (With Dynamic Tactile Screen Shake) */}
       <main
@@ -1046,6 +1236,7 @@ export default function App() {
       >
         {/* 3D Three.js WebGL Scene */}
         <MoleScene3D
+          ref={moleSceneRef}
           moles={moles}
           selectedHammer={selectedHammer}
           theme={profile.settings.theme}
@@ -1059,32 +1250,68 @@ export default function App() {
           particleExplosionTrigger={particleExplosionTrigger}
         />
 
-        {/* IN-GAME HUD OVERLAY (When Playing) */}
-        {gameState === 'playing' && (
-          <GameHUD
-            score={score}
-            combo={combo}
-            maxCombo={maxCombo}
-            timeRemaining={timeRemaining}
-            gameDuration={60}
-            mode={gameMode}
-            profile={profile}
-            activePowerups={activePowerups}
-            sessionIngredients={sessionIngredients}
-            kitchenDisasterActive={kitchenDisasterActive}
-            disasterTimeRemaining={disasterTimeRemaining}
-            onUsePowerup={handleUsePowerup}
-            onPause={() => setGameState('paused')}
-            isMuted={profile.settings.soundVolume === 0 && profile.settings.musicVolume === 0}
-            onToggleMute={() => {
-              const newVol = profile.settings.soundVolume > 0 ? 0 : 0.8;
-              handleUpdateProfile({
-                ...profile,
-                settings: { ...profile.settings, soundVolume: newVol, musicVolume: newVol * 0.75 },
-              });
-            }}
-          />
+        {/* MediaPipe Hands Vision Overlays (Reticle & PiP Camera Window) */}
+        {controlMode === 'camera' && (
+          <React.Suspense fallback={null}>
+            <GestureReticle
+              cursor={handTracking.cursor}
+              gesture={handTracking.gesture}
+              active={
+                !showCameraTutorial &&
+                !activeModal &&
+                (gameState === 'playing' || gameState === 'menu')
+              }
+            />
+            <CameraPiPView
+              videoRef={handTracking.videoRef}
+              canvasRef={handTracking.canvasRef}
+              status={handTracking.status}
+              errorMessage={handTracking.errorMessage}
+              gesture={handTracking.gesture}
+              fps={handTracking.fps}
+              onRetry={handTracking.retry}
+              onSwitchToClassic={() => handleSetControlMode('classic')}
+            />
+          </React.Suspense>
         )}
+
+        {/* IN-GAME HUD OVERLAY (When Playing) */}
+        <AnimatePresence>
+          {gameState === 'playing' && (
+            <motion.div
+              key="game-hud-container"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.22 }}
+              className="pointer-events-none absolute inset-0 z-20"
+            >
+              <GameHUD
+                score={score}
+                combo={combo}
+                maxCombo={maxCombo}
+                timeRemaining={timeRemaining}
+                gameDuration={60}
+                mode={gameMode}
+                profile={profile}
+                activePowerups={activePowerups}
+                sessionIngredients={sessionIngredients}
+                kitchenDisasterActive={kitchenDisasterActive}
+                disasterTimeRemaining={disasterTimeRemaining}
+                onUsePowerup={handleUsePowerup}
+                onPause={() => setGameState('paused')}
+                isMuted={profile.settings.soundVolume === 0 && profile.settings.musicVolume === 0}
+                onToggleMute={() => {
+                  const newVol = profile.settings.soundVolume > 0 ? 0 : 0.8;
+                  handleUpdateProfile({
+                    ...profile,
+                    settings: { ...profile.settings, soundVolume: newVol, musicVolume: newVol * 0.75 },
+                  });
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* MULTIPLAYER IN-MATCH OVERLAY (Split Score Bar, Attacks, Live Chat) */}
         {gameState === 'playing' && gameMode === 'multiplayer' && mpRoom && (
@@ -1096,15 +1323,23 @@ export default function App() {
         )}
 
         {/* MAIN MENU HUB (Immersive UI Hub Layout) */}
-        {gameState === 'menu' && (
-          <div className="absolute inset-0 z-20 flex flex-col justify-between p-4 md:p-6 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto">
+        <AnimatePresence>
+          {gameState === 'menu' && (
+            <motion.div
+              key="main-menu-hub"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.22 }}
+              className="absolute inset-0 z-20 flex flex-col justify-between p-4 md:p-6 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto"
+            >
             {/* Quick Live Info Sidebar / Top Badges (Responsive layout) */}
             <div className="grid grid-cols-12 gap-4 flex-1 items-center min-h-0">
               {/* Left Side: Live Activity & Event Card (Visible on md+) */}
               <aside className="hidden lg:flex col-span-3 flex-col space-y-4 max-h-[480px]">
                 {/* Live Kitchen Feed / Activity Feed */}
                 <div className="flex-1 bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 flex flex-col shadow-xl">
-                  <h3 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-[0.2em] flex items-center justify-between">
+                  <h3 className="text-xs font-display font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center justify-between">
                     <span>Cocina en Vivo</span>
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   </h3>
@@ -1126,7 +1361,7 @@ export default function App() {
                       sfx.playButtonClick();
                       setActiveModal('pizza_codex');
                     }}
-                    className="mt-3 h-9 bg-slate-900/80 hover:bg-slate-900 rounded-xl border border-white/5 flex items-center justify-center px-3 text-xs text-amber-300 font-semibold transition"
+                    className="mt-3 h-9 bg-slate-900/80 hover:bg-slate-900 rounded-xl border border-white/5 flex items-center justify-center px-3 text-xs text-amber-300 font-semibold transition cursor-pointer"
                   >
                     Abrir Recetario de Pizzas →
                   </button>
@@ -1140,7 +1375,7 @@ export default function App() {
                   }}
                   className="bg-indigo-900/40 hover:bg-indigo-900/60 rounded-3xl border border-indigo-500/20 p-4 cursor-pointer transition shadow-xl"
                 >
-                  <h3 className="text-xs font-black uppercase text-indigo-300 mb-1.5 tracking-wider">Active Event</h3>
+                  <h3 className="text-xs font-display font-bold uppercase text-indigo-300 mb-1.5 tracking-wider">Active Event</h3>
                   <div className="text-sm font-bold text-white mb-0.5">Lunar Festival Frenzy</div>
                   <div className="text-[11px] text-indigo-200 mb-2">Collect Golden Moles for 2X credits!</div>
                   <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
@@ -1155,7 +1390,7 @@ export default function App() {
                   {/* Chef Idle Character in Main Menu with Watch Check, Brow Wipe & Interactive Reactions */}
                   <ChefIdleCharacter className="mb-2" />
 
-                  <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-none mb-2 font-['Outfit']">
+                  <h1 className="text-3xl md:text-4xl font-black text-white tracking-wide leading-none mb-2 font-display">
                     Panic at the Pizzeria
                   </h1>
                   <p className="text-xs md:text-sm text-slate-300 mb-6 max-w-sm">
@@ -1182,17 +1417,32 @@ export default function App() {
                       Cocina
                     </button>
                   </div>
+                  {/* Game Mode Selector (Classic vs MediaPipe Hands) */}
+                  <div className="w-full max-w-sm flex justify-center mb-4">
+                    <ModeSelector controlMode={controlMode} onChange={handleSetControlMode} />
+                  </div>
 
-                  {/* Immersive UI Chunky Tactile Play Button */}
-                  <div className="w-full max-w-sm sm:max-w-md flex justify-center">
+                  {/* Immersive UI Chunky Tactile Play Button with Hand Cursor Hover Support */}
+                  <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center justify-center">
                     <button
                       id="btn_play_arcade"
                       onClick={() => handleStartArcade('arcade')}
-                      className="w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3"
+                      className={`w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer ${
+                        isPlayHoveredByHand && controlMode === 'camera'
+                          ? 'scale-105 ring-4 ring-amber-300 shadow-[0_0_40px_rgba(245,158,11,0.85)] border-amber-400 -translate-y-1'
+                          : ''
+                      }`}
                     >
-                      <Play className="w-6 h-6 fill-current" />
+                      <Play className={`w-6 h-6 fill-current transition-transform duration-150 ${isPlayHoveredByHand && controlMode === 'camera' ? 'scale-125' : ''}`} />
                       ¡Defender Cocina!
                     </button>
+                    {controlMode === 'camera' && (
+                      <div className={`mt-2 text-center text-xs font-bold transition-all duration-200 ${
+                        isPlayHoveredByHand ? 'text-amber-300 scale-105 animate-pulse' : 'text-slate-400'
+                      }`}>
+                        {isPlayHoveredByHand ? '✊ ¡Cierra el puño o 🤏 pellizca para comenzar!' : '🎯 Apunta aquí con la mano para iniciar'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -1201,9 +1451,9 @@ export default function App() {
               <aside className="hidden lg:flex col-span-3 flex-col space-y-4 max-h-[480px]">
                 {/* Shop Teaser */}
                 <div className="bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 shadow-xl">
-                  <h3 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center justify-between">
+                  <h3 className="text-xs font-display font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center justify-between">
                     <span>Featured Upgrades</span>
-                    <button onClick={() => setActiveModal('shop')} className="text-orange-400 hover:underline text-[10px]">
+                    <button onClick={() => setActiveModal('shop')} className="text-orange-400 hover:underline text-[10px] cursor-pointer">
                       View All
                     </button>
                   </h3>
@@ -1216,10 +1466,10 @@ export default function App() {
                         ⚡
                       </div>
                       <div className="flex-1 text-left">
-                        <div className="text-xs font-bold text-white">Thunder Mallet</div>
-                        <div className="text-[10px] text-slate-400">+20% Area Dmg</div>
+                        <div className="text-xs font-display font-bold text-white">Thunder Mallet</div>
+                        <div className="text-[10px] text-slate-400 font-body">+20% Area Dmg</div>
                       </div>
-                      <div className="text-xs font-black text-orange-400">2.5K</div>
+                      <div className="text-xs font-black text-orange-400 font-mono">2.5K</div>
                     </div>
 
                     <div
@@ -1230,19 +1480,19 @@ export default function App() {
                         ❄️
                       </div>
                       <div className="flex-1 text-left">
-                        <div className="text-xs font-bold text-white">Time Freeze</div>
-                        <div className="text-[10px] text-slate-400">+5s Round Time</div>
+                        <div className="text-xs font-display font-bold text-white">Time Freeze</div>
+                        <div className="text-[10px] text-slate-400 font-body">+5s Round Time</div>
                       </div>
-                      <div className="text-xs font-black text-orange-400">1.2K</div>
+                      <div className="text-xs font-black text-orange-400 font-mono">1.2K</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Achievements / Bounty Teaser */}
                 <div className="flex-1 bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 flex flex-col shadow-xl">
-                  <h3 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center justify-between">
+                  <h3 className="text-xs font-display font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center justify-between">
                     <span>Weekly Bounty</span>
-                    <button onClick={() => setActiveModal('events')} className="text-indigo-400 hover:underline text-[10px]">
+                    <button onClick={() => setActiveModal('events')} className="text-indigo-400 hover:underline text-[10px] cursor-pointer">
                       Details
                     </button>
                   </h3>
@@ -1257,34 +1507,37 @@ export default function App() {
                 </div>
               </aside>
             </div>
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
         {/* MULTIPLAYER LOBBY (Room creation, code sharing, quick matchmaking) */}
         {gameState === 'multiplayer_lobby' && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md pointer-events-auto">
-            <MultiplayerLobby
-              profile={profile}
-              onBack={() => setGameState('menu')}
-              onGameStarted={(room) => {
-                setMpRoom(room);
-                setIsNewHighScoreRound(false);
-                setIsMultiplayerWinRound(false);
-                setGameMode('multiplayer');
-                setScore(0);
-                setCombo(0);
-                setMaxCombo(0);
-                setMolesHit(0);
-                setGoldenHit(0);
-                setBombsHit(0);
-                setTimeRemaining(60);
-                setFrenzyActive(false);
-                setMoles([]);
-                setFloatingTexts([]);
-                setGameState('playing');
-              }}
-            />
-          </div>
+          <React.Suspense fallback={null}>
+            <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md pointer-events-auto">
+              <MultiplayerLobby
+                profile={profile}
+                onBack={() => setGameState('menu')}
+                onGameStarted={(room) => {
+                  setMpRoom(room);
+                  setIsNewHighScoreRound(false);
+                  setIsMultiplayerWinRound(false);
+                  setGameMode('multiplayer');
+                  setScore(0);
+                  setCombo(0);
+                  setMaxCombo(0);
+                  setMolesHit(0);
+                  setGoldenHit(0);
+                  setBombsHit(0);
+                  setTimeRemaining(60);
+                  setFrenzyActive(false);
+                  setMoles([]);
+                  setFloatingTexts([]);
+                  setGameState('playing');
+                }}
+              />
+            </div>
+          </React.Suspense>
         )}
       </main>
 
@@ -1336,127 +1589,177 @@ export default function App() {
 
       {/* Armory & Powerup Shop Modal */}
       {activeModal === 'shop' && (
-        <ShopModal
-          profile={profile}
-          onClose={() => setActiveModal(null)}
-          onUpdateProfile={handleUpdateProfile}
-        />
+        <React.Suspense fallback={null}>
+          <ShopModal
+            profile={profile}
+            onClose={() => setActiveModal(null)}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        </React.Suspense>
       )}
 
       {/* Avatar Customizer Modal */}
       {activeModal === 'avatar' && (
-        <AvatarCustomizer
-          profile={profile}
-          onClose={() => setActiveModal(null)}
-          onUpdateProfile={handleUpdateProfile}
-        />
+        <React.Suspense fallback={null}>
+          <AvatarCustomizer
+            profile={profile}
+            onClose={() => setActiveModal(null)}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        </React.Suspense>
       )}
 
       {/* Leaderboards & Friends Modal */}
       {activeModal === 'leaderboard' && (
-        <LeaderboardModal
-          profile={profile}
-          onClose={() => setActiveModal(null)}
-        />
+        <React.Suspense fallback={null}>
+          <LeaderboardModal
+            profile={profile}
+            onClose={() => setActiveModal(null)}
+            onPlayAgain={() => {
+              setActiveModal(null);
+              handleStartArcade(gameMode);
+            }}
+          />
+        </React.Suspense>
       )}
 
       {/* Mole Field Guide & Species Codex Modal */}
       {activeModal === 'codex' && (
-        <MoleCodexModal
-          onClose={() => setActiveModal(null)}
-        />
+        <React.Suspense fallback={null}>
+          <MoleCodexModal
+            onClose={() => setActiveModal(null)}
+          />
+        </React.Suspense>
       )}
 
       {/* Events & Weekly Challenges Modal */}
       {activeModal === 'events' && (
-        <EventsAndChallengesModal
-          profile={profile}
-          onClose={() => setActiveModal(null)}
-          onUpdateProfile={handleUpdateProfile}
-        />
+        <React.Suspense fallback={null}>
+          <EventsAndChallengesModal
+            profile={profile}
+            onClose={() => setActiveModal(null)}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        </React.Suspense>
+      )}
+
+      {/* Italian Pizza Recipe Codex Modal */}
+      {activeModal === 'pizza_codex' && (
+        <React.Suspense fallback={null}>
+          <PizzaRecipeCodex
+            profile={profile}
+            onClose={() => setActiveModal(null)}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        </React.Suspense>
       )}
 
       {/* Settings & In-Game Pause Modal */}
-      <PauseAndSettingsModal
-        profile={profile}
-        isOpen={activeModal === 'settings' || gameState === 'paused'}
-        isPaused={gameState === 'paused'}
-        onClose={() => {
-          if (gameState === 'paused') setGameState('playing');
-          setActiveModal(null);
-        }}
-        onResume={() => setGameState('playing')}
-        onRestart={() => handleStartArcade(gameMode)}
-        onQuitToMenu={() => {
-          setGameState('menu');
-          setActiveModal(null);
-        }}
-        onTriggerKitchenDisaster={() => {
-          triggerKitchenDisaster();
-          setGameState('playing');
-          setActiveModal(null);
-        }}
-        onTestParticleExplosion={(type) => {
-          const cx = typeof window !== 'undefined' ? window.innerWidth / 2 : 400;
-          const cy = typeof window !== 'undefined' ? window.innerHeight / 2 : 300;
-          setParticleExplosionTrigger({
-            x: cx,
-            y: cy,
-            type,
-            isCrit: true,
-            isDefeated: true,
-            timestamp: Date.now(),
-          });
-          triggerScreenShake(6.5);
-          sfx.playMoleSpawn(type);
-        }}
-        onUpdateProfile={handleUpdateProfile}
-      />
+      {(activeModal === 'settings' || gameState === 'paused') && (
+        <React.Suspense fallback={null}>
+          <PauseAndSettingsModal
+            profile={profile}
+            isOpen={activeModal === 'settings' || gameState === 'paused'}
+            isPaused={gameState === 'paused'}
+            onClose={() => {
+              if (gameState === 'paused') setGameState('playing');
+              setActiveModal(null);
+            }}
+            onResume={() => setGameState('playing')}
+            onRestart={() => handleStartArcade(gameMode)}
+            onQuitToMenu={() => {
+              setGameState('menu');
+              setActiveModal(null);
+            }}
+            onTriggerKitchenDisaster={() => {
+              triggerKitchenDisaster();
+              setGameState('playing');
+              setActiveModal(null);
+            }}
+            onTestParticleExplosion={(type) => {
+              const cx = typeof window !== 'undefined' ? window.innerWidth / 2 : 400;
+              const cy = typeof window !== 'undefined' ? window.innerHeight / 2 : 300;
+              setParticleExplosionTrigger({
+                x: cx,
+                y: cy,
+                type,
+                isCrit: true,
+                isDefeated: true,
+                timestamp: Date.now(),
+              });
+              triggerScreenShake(6.5);
+              sfx.playMoleSpawn(type);
+            }}
+            onRepeatCameraTutorial={() => setShowCameraTutorial(true)}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        </React.Suspense>
+      )}
+
+      {/* Interactive Camera Mode Onboarding Tutorial */}
+      {showCameraTutorial && (
+        <React.Suspense fallback={null}>
+          <CameraTutorialModal
+            isOpen={showCameraTutorial}
+            onClose={() => setShowCameraTutorial(false)}
+            onComplete={() => setShowCameraTutorial(false)}
+            status={handTracking.status}
+            cursor={handTracking.cursor}
+            gesture={handTracking.gesture}
+          />
+        </React.Suspense>
+      )}
 
       {/* Game Over / Victory Modal */}
-      {gameState === 'gameover' && (
-        <GameOverModal
-          score={score}
-          combo={combo}
-          maxCombo={maxCombo}
-          molesHit={molesHit}
-          goldenHit={goldenHit}
-          bombsHit={bombsHit}
-          mode={gameMode}
-          isNewHighScore={isNewHighScoreRound}
-          isMultiplayerWin={
-            isMultiplayerWinRound || (
-              gameMode === 'multiplayer' && mpRoom && mpRoom.players[profile.id]
-                ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).every((p) => p.id === profile.id || score > p.score)
-                : false
-            )
-          }
-          isMultiplayerTie={
-            gameMode === 'multiplayer' && mpRoom && mpRoom.players[profile.id]
-              ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).some((p) => p.id !== profile.id && score === p.score)
-              : false
-          }
-          opponentName={
-            gameMode === 'multiplayer' && mpRoom
-              ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).find((p) => p.id !== profile.id)?.name
-              : undefined
-          }
-          opponentScore={
-            gameMode === 'multiplayer' && mpRoom
-              ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).find((p) => p.id !== profile.id)?.score
-              : undefined
-          }
-          profile={profile}
-          onPlayAgain={() => {
-            if (gameMode === 'multiplayer') {
-              setGameState('multiplayer_lobby');
-            } else {
-              handleStartArcade(gameMode);
-            }
-          }}
-          onHome={() => setGameState('menu')}
-        />
-      )}
+      <AnimatePresence>
+        {gameState === 'gameover' && (
+          <React.Suspense fallback={null}>
+            <GameOverModal
+              score={score}
+              combo={combo}
+              maxCombo={maxCombo}
+              molesHit={molesHit}
+              goldenHit={goldenHit}
+              bombsHit={bombsHit}
+              mode={gameMode}
+              isNewHighScore={isNewHighScoreRound}
+              isMultiplayerWin={
+                isMultiplayerWinRound || (
+                  gameMode === 'multiplayer' && mpRoom && mpRoom.players[profile.id]
+                    ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).every((p) => p.id === profile.id || score > p.score)
+                    : false
+                )
+              }
+              isMultiplayerTie={
+                gameMode === 'multiplayer' && mpRoom && mpRoom.players[profile.id]
+                  ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).some((p) => p.id !== profile.id && score === p.score)
+                  : false
+              }
+              opponentName={
+                gameMode === 'multiplayer' && mpRoom
+                  ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).find((p) => p.id !== profile.id)?.name
+                  : undefined
+              }
+              opponentScore={
+                gameMode === 'multiplayer' && mpRoom
+                  ? (Object.values(mpRoom.players) as import('./types').MultiplayerPlayer[]).find((p) => p.id !== profile.id)?.score
+                  : undefined
+              }
+              profile={profile}
+              onOpenCodex={() => setActiveModal('pizza_codex')}
+              onOpenLeaderboard={() => setActiveModal('leaderboard')}
+              onPlayAgain={() => {
+                if (gameMode === 'multiplayer') {
+                  setGameState('multiplayer_lobby');
+                } else {
+                  handleStartArcade(gameMode);
+                }
+              }}
+              onHome={() => setGameState('menu')}
+            />
+          </React.Suspense>
+        )}
+      </AnimatePresence>
 
       {/* Push Notifications Toast Manager - only in Menu state */}
       {gameState === 'menu' && (

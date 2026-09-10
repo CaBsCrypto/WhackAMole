@@ -16,6 +16,8 @@ import {
   Shield,
   Snowflake,
   Zap,
+  ExternalLink,
+  Globe,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -1216,6 +1218,20 @@ export default function App() {
                 >
                   <Settings className="w-4 h-4" />
                 </button>
+
+                {/* SpicyCrust Portal Link */}
+                <a
+                  href="https://spicycrust.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => sfx.playButtonClick()}
+                  className="px-3 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white rounded-xl flex items-center gap-1.5 text-xs font-black uppercase font-display tracking-wider shadow-md shadow-orange-500/20 border border-amber-400/40 transition hover:scale-105"
+                  title="Ir a SpicyCrust.com"
+                >
+                  <span>🍕</span>
+                  <span className="hidden md:inline">SpicyCrust.com</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
           </motion.header>

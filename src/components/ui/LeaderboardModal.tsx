@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Trophy, Medal, Users, Globe, Calendar, Search, Swords, X, RotateCcw, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Medal, Users, Globe, Calendar, Search, Swords, X, RotateCcw, Loader2, ExternalLink } from 'lucide-react';
 import { LeaderboardEntry, UserProfile } from '../../types';
 import { storageService } from '../../services/storage';
 import { getLeaderboard, SpicyCrustLeaderboardEntry } from '../../services/spicycrust-api';
@@ -107,13 +107,27 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            aria-label="Cerrar ventana"
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href="https://spicycrust.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => sfx.playButtonClick()}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition shadow-md shadow-orange-500/20 border border-amber-400/30"
+              title="Visitar spicycrust.com"
+            >
+              <span>🍕 spicycrust.com</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+
+            <button
+              onClick={onClose}
+              aria-label="Cerrar ventana"
+              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition cursor-pointer shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Buttons */}

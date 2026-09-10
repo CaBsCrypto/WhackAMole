@@ -1,7 +1,7 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import confetti from 'canvas-confetti';
-import { Trophy, RotateCcw, Home, Sparkles, Zap, Target, Coins, BookOpen, Send, CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { Trophy, RotateCcw, Home, Sparkles, Zap, Target, Coins, BookOpen, Send, CheckCircle2, AlertCircle, Loader2, ArrowRight, ExternalLink } from 'lucide-react';
 import { UserProfile, GameMode } from '../../types';
 import { PIZZA_INGREDIENTS, PIZZA_RECIPES, checkRecipeRequirements } from '../../data/pizzaRecipes';
 import { sfx } from '../../services/sfx';
@@ -499,22 +499,35 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
-          <button
-            id="gameover_btn_home"
-            onClick={handleHomeClick}
-            className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase rounded-2xl flex items-center justify-center gap-1.5 border border-white/10 transition cursor-pointer"
-          >
-            <Home className="w-4 h-4" /> Menu
-          </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <button
+              id="gameover_btn_home"
+              onClick={handleHomeClick}
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase rounded-2xl flex items-center justify-center gap-1.5 border border-white/10 transition cursor-pointer"
+            >
+              <Home className="w-4 h-4" /> Menu
+            </button>
 
-          <button
-            id="gameover_btn_replay"
-            onClick={handlePlayAgainClick}
-            className="flex-1 py-3 bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 text-white font-black text-xs uppercase rounded-2xl tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg shadow-orange-500/20 cursor-pointer"
+            <button
+              id="gameover_btn_replay"
+              onClick={handlePlayAgainClick}
+              className="flex-1 py-3 bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 text-white font-black text-xs uppercase rounded-2xl tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg shadow-orange-500/20 cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" /> Play Again
+            </button>
+          </div>
+
+          <a
+            href="https://spicycrust.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => sfx.playButtonClick()}
+            className="w-full py-2.5 bg-slate-950/80 hover:bg-slate-900 border border-amber-500/30 text-amber-300 rounded-2xl text-xs font-black uppercase font-display tracking-wider flex items-center justify-center gap-2 transition hover:border-amber-400/60 shadow-md"
           >
-            <RotateCcw className="w-4 h-4" /> Play Again
-          </button>
+            <span>🍕 Visitar Taberna SpicyCrust.com</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </motion.div>
     </motion.div>

@@ -1297,45 +1297,6 @@ export default function App() {
                       ¡Defiende la cocina del Chef de la banda de topos ladrones de pizza con rodillos, palas y cortadores láser en 3D!
                     </p>
 
-                    {/* Equipped Weapon Card */}
-                    <div className="flex items-center justify-between w-full max-w-sm sm:max-w-md p-3.5 bg-slate-800/70 backdrop-blur-md rounded-2xl border border-white/10 shadow-lg mb-5 text-xs">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl border border-white/20 shadow-md"
-                          style={{
-                            backgroundColor: selectedHammer.color || '#92400e',
-                            boxShadow: selectedHammer.glowColor ? `0 0 12px ${selectedHammer.glowColor}` : undefined,
-                          }}
-                        >
-                          {selectedHammer.headShape === 'uslero' || selectedHammer.id.includes('mallet')
-                            ? '🥖'
-                            : selectedHammer.headShape === 'warhammer'
-                            ? '🪵'
-                            : selectedHammer.headShape === 'cyber' || selectedHammer.headShape === 'magma'
-                            ? '🍕'
-                            : selectedHammer.headShape === 'star' || selectedHammer.headShape === 'donut'
-                            ? '⚡'
-                            : '🔨'}
-                        </div>
-                        <div className="text-left">
-                          <span className="font-bold text-white text-sm block">{selectedHammer.name}</span>
-                          <span className="text-[10px] text-amber-400 font-black tracking-wider uppercase">
-                            Utensilio del Chef • {selectedHammer.specialEffect === 'none' ? 'Tradicional' : selectedHammer.specialEffect.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          sfx.playButtonClick();
-                          setActiveModal('shop');
-                        }}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl border border-white/10 transition cursor-pointer"
-                        title="Cambiar utensilio"
-                      >
-                        Cambiar
-                      </button>
-                    </div>
                     {/* Game Mode Selector (Classic vs MediaPipe Hands) */}
                     <div className="w-full max-w-sm sm:max-w-md flex justify-center mb-4">
                       <ModeSelector controlMode={controlMode} onChange={handleSetControlMode} />

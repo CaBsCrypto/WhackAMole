@@ -2,16 +2,10 @@ import React, { useState } from 'react';
 import {
   X,
   Zap,
-  Shield,
-  Crown,
-  Sparkles,
-  Ghost,
-  Clock,
-  HardHat,
   Bomb,
   Target,
   ChevronRight,
-  Award,
+  Sparkles,
   Activity,
   Heart,
   TrendingUp,
@@ -42,6 +36,23 @@ interface MoleSpec {
 
 const MOLE_SPECS: MoleSpec[] = [
   {
+    type: 'standard',
+    name: 'Ladrón Novato de Masa',
+    badge: 'Topito Chef',
+    badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+    borderColor: 'hover:border-orange-400/60',
+    bgGradient: 'from-orange-950/30 to-slate-900/80',
+    icon: <Target className="w-6 h-6 text-orange-400" />,
+    health: 1,
+    speed: 'Estándar (1.5s)',
+    pattern: 'Asomada Clásica de Cocina',
+    points: 100,
+    coins: 5,
+    description: 'El simpático topo clásico con gorro blanco de chef (toque blanche), pañuelo rojo napolitano, bigote italiano y dientes tiernos.',
+    tacticalTip: 'Ideal para iniciar y construir multiplicadores de combo de cocina.',
+    visualTraits: ['Gorro de Chef Toque Blanche', 'Bigote Italiano Curvado', 'Pañuelo Rojo'],
+  },
+  {
     type: 'fast',
     name: 'Repartidor Exprés',
     badge: 'Velocista Ágil',
@@ -59,125 +70,6 @@ const MOLE_SPECS: MoleSpec[] = [
     visualTraits: ['Visera de Repartidor', 'Gafas de Velocidad Cian', 'Mochila de Pizza'],
   },
   {
-    type: 'tough',
-    name: 'Chef Sartén de Hierro',
-    badge: 'Blindado Pesado (3 HP)',
-    badgeColor: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-    borderColor: 'hover:border-slate-400/60',
-    bgGradient: 'from-slate-950/40 to-slate-900/80',
-    icon: <Shield className="w-6 h-6 text-slate-300" />,
-    health: 3,
-    speed: 'Pesado & Lento (2.3s)',
-    pattern: 'Guardia con Sartén & Retroceso',
-    points: 400,
-    coins: 30,
-    description: 'Protegido por una pesada sartén de hierro fundido boca abajo y delantal acorazado. Cuenta con una barra 3D superior de 3 puntos de salud.',
-    tacticalTip: 'Requiere 3 golpes consecutivos o un mazo/espátula de alto daño para quebrar su sartén.',
-    visualTraits: ['Casco de Sartén de Hierro', 'Delantal Acorazado', 'Barra 3D de 3 Vidas'],
-  },
-  {
-    type: 'golden',
-    name: 'Trufa de Oro & Parmesano 24K',
-    badge: 'Tesoro Culinario',
-    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    borderColor: 'hover:border-amber-400/60',
-    bgGradient: 'from-amber-950/40 to-slate-900/80',
-    icon: <Sparkles className="w-6 h-6 text-amber-400" />,
-    health: 1,
-    speed: 'Rápido (1.1s)',
-    pattern: 'Giro Espiral 360° Dorado',
-    points: 300,
-    coins: 25,
-    description: 'Brilla con un acabado de oro espejo de 24K, medallón de rebanada de pizza dorada y tiara de queso parmesano.',
-    tacticalTip: 'Genera una lluvia de monedas de queso y rebanadas doradas al ser golpeado. ¡Prioridad máxima para la tienda!',
-    visualTraits: ['Cuerpo Dorado Espejo 24K', 'Tiara de Parmesano', 'Medallón de Pizza'],
-  },
-  {
-    type: 'rainbow',
-    name: 'Cuatro Quesos Supremo',
-    badge: 'Catalizador Astral',
-    badgeColor: 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
-    borderColor: 'hover:border-fuchsia-400/60',
-    bgGradient: 'from-fuchsia-950/40 to-slate-900/80',
-    icon: <Award className="w-6 h-6 text-fuchsia-400" />,
-    health: 1,
-    speed: 'Medio (1.3s)',
-    pattern: 'Levitación Cero-G & Órbita de Pepperonis',
-    points: 500,
-    coins: 50,
-    description: 'Irradia destellos multicolores con una estrella giratoria de cuatro quesos y gemas de pepperoni en órbita.',
-    tacticalTip: '¡Al golpearlo desata el Modo Queso Infinito, llenando todos los 9 hornos de topos dorados durante 6 segundos!',
-    visualTraits: ['Aura Multicolor Cuatro Quesos', 'Estrella de Queso Giratoria', 'Gemas de Pepperoni'],
-  },
-  {
-    type: 'boss',
-    name: 'Don Quesone - El Padrino de la Masa',
-    badge: 'Jefe Supremo (5 HP)',
-    badgeColor: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-    borderColor: 'hover:border-rose-400/60',
-    bgGradient: 'from-rose-950/40 to-slate-900/80',
-    icon: <Crown className="w-6 h-6 text-rose-400" />,
-    health: 5,
-    speed: 'Estancia Prolongada (3.4s)',
-    pattern: 'Entrada Triunfal & Rugido Napolitano',
-    points: 1000,
-    coins: 100,
-    description: 'El líder supremo de la mafia de ladrones de pizza. Escala titán 1.4x, enorme gorro de chef con cinta tricolor italiana, gran bigote y barra de 5 vidas.',
-    tacticalTip: 'Requiere 5 impactos rápidos. Otorga 1,000 puntos, 100 monedas y una gran explosión de rebanadas de pizza al caer.',
-    visualTraits: ['Escala Gigante 1.4x', 'Gorro Toque Tricolor Italiano', 'Gran Bigote & Medalla'],
-  },
-  {
-    type: 'phantom',
-    name: 'Vapor de Masa Madre',
-    badge: 'Aroma Espectral',
-    badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    borderColor: 'hover:border-purple-400/60',
-    bgGradient: 'from-purple-950/40 to-slate-900/80',
-    icon: <Ghost className="w-6 h-6 text-purple-400" />,
-    health: 1,
-    speed: 'Medio-Rápido (1.2s)',
-    pattern: 'Cambio de Fase & Humo Aromático',
-    points: 350,
-    coins: 25,
-    description: 'Espíritu aromático semitransparente nacido del calor del horno que se desvanece y reaparece con un halo de vapor.',
-    tacticalTip: 'Golpea cuando su opacidad alcance el punto máximo; no te dejes confundir por su parpadeo fantasmal.',
-    visualTraits: ['Cuerpo Etéreo Translúcido', 'Anillo de Humo Aromático', 'Brillo Violeta'],
-  },
-  {
-    type: 'frost',
-    name: 'Gelato Criogénico',
-    badge: '+4s Reloj Horno',
-    badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-    borderColor: 'hover:border-sky-400/60',
-    bgGradient: 'from-sky-950/40 to-slate-900/80',
-    icon: <Clock className="w-6 h-6 text-sky-400" />,
-    health: 1,
-    speed: 'Moderado (1.6s)',
-    pattern: 'Hojita de Menta & Cristales de Hielo',
-    points: 150,
-    coins: 10,
-    description: 'Cuerpo helado de gelato artesanal con una hoja de menta fresca en la cabeza y 3 cristales de hielo orbitando.',
-    tacticalTip: '¡Al golpearlo congelas el calor y ganas +4 segundos extras al reloj del horno para extender tus combos!',
-    visualTraits: ['Cuerpo de Gelato Translúcido', 'Hoja de Menta', '3 Cristales de Hielo'],
-  },
-  {
-    type: 'helmet',
-    name: 'Maestro Hornero',
-    badge: 'Casco de Hornear (2 HP)',
-    badgeColor: 'bg-amber-600/20 text-amber-400 border-amber-600/30',
-    borderColor: 'hover:border-amber-500/60',
-    bgGradient: 'from-amber-950/30 to-slate-900/80',
-    icon: <HardHat className="w-6 h-6 text-amber-500" />,
-    health: 2,
-    speed: 'Estándar (1.7s)',
-    pattern: 'Inspección de Horno & Linterna',
-    points: 250,
-    coins: 15,
-    description: 'Porta un casco amarillo de protección contra chispas con linterna frontal de horno y barra de 2 puntos de salud.',
-    tacticalTip: 'El primer golpe hace saltar el casco de cocina; el segundo golpe asegura la captura.',
-    visualTraits: ['Casco Protector de Horno', 'Linterna Frontal Encendida', 'Barra 3D de 2 Vidas'],
-  },
-  {
     type: 'bomb',
     name: 'Piña Prohibida / Habanero Explosivo',
     badge: '¡PELIGRO / NO GOLPEAR!',
@@ -190,28 +82,38 @@ const MOLE_SPECS: MoleSpec[] = [
     pattern: 'Mecha Chispeante & Tallo de Chile',
     points: -250,
     coins: 0,
-    description: 'Cuerpo volcánico oscuro con ojos ardientes, tallo de chile habanero y una mecha con chispas encendidas.',
+    description: 'Cuerpo volcánico oscuro con ojos ardientes, tallo de chile habanero y una mecha encendida.',
     tacticalTip: '¡NUNCA GOLPEAR! Arruinará la pizza del chef, restará 250 puntos y romperá de inmediato tu racha de combo.',
-    visualTraits: ['Cuerpo Oscuro Volcánico', 'Ojos Rojos Calavera', 'Mecha con Chispa Encendida'],
-  },
-  {
-    type: 'standard',
-    name: 'Ladrón Novato de Masa',
-    badge: 'Topito Chef',
-    badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-    borderColor: 'hover:border-orange-400/60',
-    bgGradient: 'from-orange-950/30 to-slate-900/80',
-    icon: <Target className="w-6 h-6 text-orange-400" />,
-    health: 1,
-    speed: 'Estándar (1.5s)',
-    pattern: 'Asomada Clásica de Cocina',
-    points: 100,
-    coins: 5,
-    description: 'El simpático topo clásico con gorro blanco de chef (toque blanche), pañuelo rojo napolitano, bigote italiano y dientes tiernos.',
-    tacticalTip: 'Ideal para iniciar y construir multiplicadores de combo de cocina.',
-    visualTraits: ['Gorro de Chef Toque Blanche', 'Bigote Italiano Curvado', 'Pañuelo Rojo'],
+    visualTraits: ['Cuerpo Oscuro Volcánico', 'Ojos Rojos Calavera', 'Mecha Encendida'],
   },
 ];
+
+
+
+interface MoleCodexModalProps {
+  onClose: () => void;
+}
+
+interface MoleSpec {
+  type: MoleType;
+  name: string;
+  badge: string;
+  badgeColor: string;
+  borderColor: string;
+  bgGradient: string;
+  icon: React.ReactNode;
+  health: number;
+  speed: string;
+  pattern: string;
+  points: number;
+  coins: number;
+  description: string;
+  tacticalTip: string;
+  visualTraits: string[];
+}
+
+
+
 
 export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
   const [selectedMole, setSelectedMole] = useState<MoleSpec>(MOLE_SPECS[0]);
@@ -227,7 +129,8 @@ export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
             </div>
             <div>
               <h2 className="text-lg font-black text-white tracking-wide uppercase font-display">Bestiario: Ladrones de Pizza</h2>
-              <p className="text-xs text-slate-400 font-body font-medium">Guía culinaria táctica de las 10 especies de topos y sus puntos débiles</p>
+              <p className="text-xs text-slate-400 font-body font-medium">Guía culinaria táctica de las 3 especies de topos y sus puntos débiles</p>
+
             </div>
           </div>
           <button
@@ -262,8 +165,8 @@ export const MoleCodexModal: React.FC<MoleCodexModalProps> = ({ onClose }) => {
                     <div>
                       <div className="text-sm font-display font-bold text-white flex items-center gap-1.5">
                         {spec.name}
-                        {spec.type === 'boss' && <Crown className="w-3.5 h-3.5 text-amber-400" />}
                       </div>
+
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${spec.badgeColor}`}>
                         {spec.badge}
                       </span>

@@ -68,7 +68,8 @@ export const CameraSmashStartModal: React.FC<CameraSmashStartModalProps> = ({
     // Audio & Haptic Punch
     try {
       sfx.playGestureConfirm();
-      sfx.playMoleHit('golden');
+      sfx.playMoleHit('fast');
+
     } catch {}
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {

@@ -131,7 +131,8 @@ export default function App() {
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [molesHit, setMolesHit] = useState(0);
-  const [goldenHit, setGoldenHit] = useState(0);
+  const [goldenHit] = useState(0); // kept for stats compat, always 0
+
   const [bombsHit, setBombsHit] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [frenzyActive, setFrenzyActive] = useState(false);
@@ -562,7 +563,7 @@ export default function App() {
         const holeIndex = freeHoles[Math.floor(Math.random() * freeHoles.length)];
         const isFrenzy = frenzyActive;
 
-        // Mole Type Selection with distinct characteristics
+        // Mole Type Selection — 3 types: standard, fast, bomb
         let type: MoleData['type'] = 'standard';
         let health = 1;
         let points = 100;
@@ -571,108 +572,48 @@ export default function App() {
         let pattern: MolePattern = 'normal';
 
         if (isFrenzy) {
-          type = 'golden';
-          points = 350;
-          coins = 25;
-          speed = 1.4;
-          pattern = 'spiral_golden';
+          // Frenzy: fast moles flood the board
+          type = 'fast';
+          points = 220;
+          coins = 15;
+          speed = 2.0;
+          pattern = 'lightning_fast';
         } else {
           const rand = Math.random();
-          if (rand < 0.28) {
+          if (rand < 0.60) {
+            // Standard Mole: classic chef, most common
             type = 'standard';
             health = 1;
             points = 100;
             coins = 5;
             speed = 1.0;
             pattern = 'normal';
-          } else if (rand < 0.44) {
-            // Fast Mole: lightning fast peek, high score, twitch pattern
+          } else if (rand < 0.85) {
+            // Fast Mole: lightning fast, high score reward
             type = 'fast';
             health = 1;
             points = 220;
             coins = 15;
             speed = 1.8;
             pattern = 'lightning_fast';
-          } else if (rand < 0.58) {
-            // Tough Mole: 3 hit points, heavy armored helmet, great reward
-            type = 'tough';
-            health = 3;
-            points = 400;
-            coins = 30;
-            speed = 0.8;
-            pattern = 'heavy_armored';
-          } else if (rand < 0.70) {
-            // Golden Mole: high gold reward, spiral ascend
-            type = 'golden';
-            health = 1;
-            points = 300;
-            coins = 25;
-            speed = 1.3;
-            pattern = 'spiral_golden';
-          } else if (rand < 0.80) {
-            // Helmet Mole: 2 hit points, construction hardhat
-            type = 'helmet';
-            health = 2;
-            points = 250;
-            coins = 15;
-            speed = 1.0;
-            pattern = 'heavy_armored';
-          } else if (rand < 0.88) {
-            // Bomb Mole: hazards to avoid
+          } else {
+            // Bomb Mole: avoid it! -250 pts penalty
             type = 'bomb';
             health = 1;
             points = -250;
             coins = 0;
             speed = 1.0;
             pattern = 'fuse_burn';
-          } else if (rand < 0.93) {
-            // Frost Mole: slows time / adds +4s clock
-            type = 'frost';
-            health = 1;
-            points = 150;
-            coins = 10;
-            speed = 0.9;
-            pattern = 'frost_freeze';
-          } else if (rand < 0.96) {
-            // Phantom Mole: holographic phase shifts
-            type = 'phantom';
-            health = 1;
-            points = 350;
-            coins = 25;
-            speed = 1.2;
-            pattern = 'phase_glitch';
-          } else if (rand < 0.985) {
-            // Rainbow Mole: activates Frenzy
-            type = 'rainbow';
-            health = 1;
-            points = 500;
-            coins = 50;
-            speed = 1.1;
-            pattern = 'prismatic_levitate';
-          } else {
-            // Boss Mole: 5 hit points, giant size, massive reward
-            type = 'boss';
-            health = 5;
-            points = 1000;
-            coins = 100;
-            speed = 0.7;
-            pattern = 'boss_slam';
           }
         }
 
-        // Duration is tailored per mole type & scales with time remaining
+        // Duration tailored per mole type & scales with time remaining
         const baseDurationMap: Record<string, number> = {
           fast: 850,
-          golden: 1150,
-          phantom: 1200,
-          rainbow: 1350,
           standard: 1500,
-          helmet: 1700,
-          frost: 1600,
           bomb: 1450,
-          tough: 2300,
-          boss: 3400,
         };
+
 
         const baseDur = baseDurationMap[type] || 1500;
         const timeDecay = (60 - timeRemaining) * 8;
@@ -775,7 +716,7 @@ export default function App() {
     setCombo(0);
     setMaxCombo(0);
     setMolesHit(0);
-    setGoldenHit(0);
+
     setBombsHit(0);
     setTimeRemaining(60);
     setFrenzyActive(false);
@@ -842,26 +783,8 @@ export default function App() {
         // Calculate screen-shake intensity scaling based on mole type
         let hitShakeIntensity = 4.5;
         switch (mole.type) {
-          case 'boss':
-            hitShakeIntensity = 16.0; // Earth-shattering boss slam
-            break;
-          case 'tough':
-            hitShakeIntensity = 10.5; // Heavy armored stone mole
-            break;
-          case 'golden':
-            hitShakeIntensity = 8.5;  // Rare Golden Mole impact
-            break;
-          case 'rainbow':
-            hitShakeIntensity = 9.0;  // Rainbow Frenzy Mole shockwave
-            break;
-          case 'helmet':
-            hitShakeIntensity = 7.5;  // Hardhat crushing blow
-            break;
-          case 'frost':
-            hitShakeIntensity = 6.5;  // Crisp ice freeze shatter
-            break;
-          case 'phantom':
-            hitShakeIntensity = 6.0;  // Ethereal phase pop
+          case 'bomb':
+            hitShakeIntensity = 12.0; // Explosive blast
             break;
           case 'fast':
             hitShakeIntensity = 5.5;  // Snappy quick-draw flick
@@ -895,27 +818,10 @@ export default function App() {
           setMolesHit((m) => m + 1);
 
           // Type-specific perks & celebration text
-          if (mole.type === 'golden') {
-            setGoldenHit((g) => g + 1);
-            addFloatingText('✨ GOLDEN! +300', clientX, clientY - 20, '#fde047', 1.3, true);
-          } else if (mole.type === 'fast') {
+          if (mole.type === 'fast') {
             addFloatingText('⚡ SPEED SHOT! +220', clientX, clientY - 20, '#38bdf8', 1.25, true);
-          } else if (mole.type === 'tough') {
-            addFloatingText('🛡️ ARMOR CRUSHED! +400', clientX, clientY - 20, '#94a3b8', 1.35, true);
-          } else if (mole.type === 'boss') {
-            addFloatingText('👑 BOSS SLAIN! +1000', clientX, clientY - 30, '#ec4899', 1.6, true);
-          } else if (mole.type === 'phantom') {
-            addFloatingText('👻 PHANTOM PURGED! +350', clientX, clientY - 20, '#c084fc', 1.3, true);
-          } else if (mole.type === 'frost') {
-            setTimeRemaining((t) => Math.min(60, t + 4));
-            addFloatingText('❄️ +4s TIME CHILL!', clientX, clientY - 20, '#38bdf8', 1.25, true);
-          } else if (mole.type === 'rainbow') {
-            setFrenzyActive(true);
-            setActivePowerups((prev) => ({ ...prev, golden_frenzy: 6 }));
-            addFloatingText('🌟 RAINBOW FRENZY!', clientX, clientY - 25, '#f59e0b', 1.5, true);
-          } else if (mole.type === 'helmet') {
-            addFloatingText('🔨 HARDHAT BROKEN! +250', clientX, clientY - 20, '#f59e0b', 1.2, true);
           }
+
         } else {
           // Non-lethal armored hit feedback
           addFloatingText(`💥 HIT! (${mole.health}/${mole.maxHealth} HP)`, clientX, clientY - 15, '#fbbf24', 1.1);
@@ -1028,9 +934,7 @@ export default function App() {
           }
 
           setMolesHit((m) => m + 1);
-          if (mole.type === 'golden') {
-            setGoldenHit((g) => g + 1);
-          }
+
 
           const has2x = (activePowerups['double_points'] || 0) > 0;
           const comboMult = 1 + combo * 0.15;
@@ -1363,7 +1267,7 @@ export default function App() {
                   setCombo(0);
                   setMaxCombo(0);
                   setMolesHit(0);
-                  setGoldenHit(0);
+
                   setBombsHit(0);
                   setTimeRemaining(60);
                   setFrenzyActive(false);

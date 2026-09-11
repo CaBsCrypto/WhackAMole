@@ -49,27 +49,6 @@ const GENERAL_TAUNTS = [
 ];
 
 const TYPE_SPECIFIC_TAUNTS: Record<MoleType, string[]> = {
-  helmet: [
-    'Hardhat power!',
-    'Clank proof!',
-    'Built tough!',
-    'Steel noggin!',
-    'Try scratching this!',
-  ],
-  phantom: [
-    'Boo! Now you see me...',
-    'Ghost dough!',
-    'Peek-a-boo!',
-    'Float like mozzarella!',
-    'Can\'t hit a spirit!',
-  ],
-  golden: [
-    'Worth 500 points!',
-    'Shiny & swift!',
-    'Catch the gold!',
-    'Golden crust!',
-    'Bling bling, chef!',
-  ],
   fast: [
     'Speedy slice!',
     'Too fast for ya!',
@@ -84,31 +63,6 @@ const TYPE_SPECIFIC_TAUNTS: Record<MoleType, string[]> = {
     'Spicy surprise!',
     'Careful with that hammer!',
   ],
-  tough: [
-    'Hard crust!',
-    'Is that all you got?',
-    'Thick crust armor!',
-    'Need a bigger hammer!',
-  ],
-  frost: [
-    'Stay frosty!',
-    'Brain freeze!',
-    'Chill out, chef!',
-    'Frozen dough!',
-  ],
-  rainbow: [
-    'Taste the rainbow!',
-    'Frenzy time!',
-    'Super prismatic!',
-    'Mega combo fuel!',
-  ],
-  boss: [
-    'I run this kitchen!',
-    'Bow to the Chef!',
-    'Supreme Master Mole!',
-    'You call that a hammer?!',
-    'Extra cheese slam!',
-  ],
   standard: [
     'Try and catch me!',
     'Pizza thief!',
@@ -120,29 +74,16 @@ const TYPE_SPECIFIC_TAUNTS: Record<MoleType, string[]> = {
 
 function getMoleIcon(type: MoleType): string {
   switch (type) {
-    case 'helmet':
-      return '⛑️';
-    case 'phantom':
-      return '👻';
-    case 'golden':
-      return '✨';
     case 'fast':
       return '⚡';
     case 'bomb':
       return '💣';
-    case 'tough':
-      return '🛡️';
-    case 'frost':
-      return '❄️';
-    case 'rainbow':
-      return '🌈';
-    case 'boss':
-      return '👑';
     case 'standard':
     default:
       return '🍕';
   }
 }
+
 
 function getRandomTaunt(type: MoleType): string {
   const specific = TYPE_SPECIFIC_TAUNTS[type] || [];

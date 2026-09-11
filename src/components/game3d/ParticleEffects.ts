@@ -325,22 +325,11 @@ export class ParticleManager {
     let ringMat: THREE.Material = this.matShockwaveWhite;
     let flourMat: THREE.Material = this.matFlour;
 
-    if (type === 'golden') {
-      ringMat = this.matShockwaveGold;
-      flourMat = this.matSparkGold;
-    } else if (type === 'frost') {
-      ringMat = this.matShockwaveCyan;
-      flourMat = this.matFrost;
-    } else if (type === 'boss' || type === 'bomb') {
+    if (type === 'bomb') {
       ringMat = this.matShockwaveGold;
       flourMat = this.matSparkOrange;
-    } else if (type === 'phantom') {
-      ringMat = this.matShockwavePurple;
-      flourMat = this.matPrismaticPurple;
-    } else if (type === 'rainbow') {
-      ringMat = this.matShockwaveCyan;
-      flourMat = this.matPrismaticPink;
     }
+
 
     // Spawn expanding ground shockwave ring
     this.spawnParticle(
@@ -429,28 +418,9 @@ export class ParticleManager {
       case 'fast':
         this.emitLightningSparks(pos);
         break;
-      case 'tough':
-      case 'helmet':
-        this.emitArmorChipped(pos, false);
-        break;
-      case 'golden':
-        this.emitCoins(pos, 8);
-        this.emitHitSparks(pos, true, 0xfef08a);
-        break;
-      case 'rainbow':
-        this.emitPrismaticBurst(pos);
-        break;
-      case 'phantom':
-        this.emitPhantomGlow(pos);
-        break;
-      case 'frost':
-        this.emitFrostShards(pos);
-        break;
-      case 'boss':
-        this.emitBossShockwave(pos);
-        break;
     }
   }
+
 
   public emitHitSparks(pos: THREE.Vector3, isCrit = false, customColor?: number) {
     const count = isCrit ? 16 : 8;

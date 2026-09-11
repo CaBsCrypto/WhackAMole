@@ -1216,32 +1216,11 @@ class SoundEffectsEngine {
   public playMoleSpawn(type: string) {
     if (this.isMuted) return;
     switch (type) {
-      case 'helmet':
-        this.playHelmetSpawn();
-        break;
-      case 'phantom':
-        this.playPhantomGiggle();
-        break;
-      case 'tough':
-        this.playToughSpawn();
-        break;
-      case 'golden':
-        this.playGoldenSpawn();
-        break;
-      case 'rainbow':
-        this.playRainbowSpawn();
-        break;
       case 'fast':
         this.playFastSpawn();
         break;
-      case 'frost':
-        this.playFrostSpawn();
-        break;
       case 'bomb':
         this.playBombSpawn();
-        break;
-      case 'boss':
-        this.playBossSpawn();
         break;
       case 'standard':
       default:
@@ -1249,6 +1228,7 @@ class SoundEffectsEngine {
         break;
     }
   }
+
 
   /**
    * Metallic resonant ping + rim tap for helmet mole
@@ -1803,39 +1783,13 @@ class SoundEffectsEngine {
         this.playFastWhoosh();
         this.playWhack(true);
         break;
-      case 'tough':
-        if (isLethal) {
-          this.playArmorBreak();
-        } else {
-          this.playMetalClang();
-        }
-        break;
-      case 'helmet':
-        this.playHelmetHit(isLethal);
-        break;
-      case 'frost':
-        this.playFrostHit();
-        break;
-      case 'golden':
-        this.playGoldenHit();
-        break;
-      case 'rainbow':
-        this.playPowerup();
-        this.playWhack(true);
-        break;
-      case 'phantom':
-        this.playPhantomDisappear();
-        break;
-      case 'boss':
-        this.playBossRoar();
-        this.playWhack(true);
-        break;
       case 'standard':
       default:
         this.playWhack(isCrit);
         break;
     }
   }
+
 
   public setAudioContext(ctx: AudioContext | null) {
     this.ctx = ctx;

@@ -209,20 +209,6 @@ export function createMoleMesh(type: MoleType, theme: string): THREE.Group {
     isEmissive = true;
     emissiveColor = 0xb45309;
     roughness = 0.35;
-  } else if (type === 'tough') {
-    bodyColor = 0x475569; // tough cast-iron master chef
-    noseColor = 0x94a3b8;
-    bellyColor = 0x334155;
-    isMetallic = true;
-    roughness = 0.4;
-  } else if (type === 'golden') {
-    bodyColor = 0xfbbf24; // 24K parmesan & golden truffle mole
-    noseColor = 0xfef08a;
-    bellyColor = 0xfde047;
-    isMetallic = true;
-    roughness = 0.15;
-    isEmissive = true;
-    emissiveColor = 0xca8a04;
   } else if (type === 'bomb') {
     bodyColor = 0x1c1917; // volcanic dark habanero / forbidden pineapple bomb
     noseColor = 0xef4444;
@@ -230,44 +216,10 @@ export function createMoleMesh(type: MoleType, theme: string): THREE.Group {
     roughness = 0.35;
     isEmissive = true;
     emissiveColor = 0x7f1d1d;
-  } else if (type === 'helmet') {
-    bodyColor = 0x78350f; // oven hardhat baker
-    noseColor = 0xf472b6;
-    bellyColor = 0xb45309;
-  } else if (type === 'frost') {
-    bodyColor = 0x38bdf8; // gelato criogénico mole
-    noseColor = 0xe0f2fe;
-    bellyColor = 0x7dd3fc;
-    isEmissive = true;
-    emissiveColor = 0x0284c7;
-    roughness = 0.15;
-    transparent = true;
-    opacity = 0.9;
-  } else if (type === 'rainbow') {
-    bodyColor = 0xec4899; // cuatro quesos supremo astral
-    noseColor = 0xfde047;
-    bellyColor = 0xa855f7;
-    isEmissive = true;
-    emissiveColor = 0x8b5cf6;
-    roughness = 0.2;
-  } else if (type === 'phantom') {
-    bodyColor = 0x818cf8; // vapor de masa madre
-    noseColor = 0xc084fc;
-    bellyColor = 0x6366f1;
-    transparent = true;
-    opacity = 0.65;
-    isEmissive = true;
-    emissiveColor = 0x4f46e5;
-    roughness = 0.2;
-  } else if (type === 'boss') {
-    bodyColor = 0x831843; // Don Quesone - Godfather of the Dough
-    noseColor = 0xfbcfe8;
-    bellyColor = 0x9d174d;
-    isMetallic = true;
-    roughness = 0.35;
   }
 
-  const moleScale = type === 'boss' ? 1.4 : 1.0;
+  const moleScale = 1.0;
+
 
   // 1. Mole Body (Capsule / Cylinder)
   const bodyGeom = new THREE.CylinderGeometry(0.55 * moleScale, 0.62 * moleScale, 1.2 * moleScale, 20);
@@ -301,15 +253,17 @@ export function createMoleMesh(type: MoleType, theme: string): THREE.Group {
   bellyMesh.position.set(0, 0.45 * moleScale, 0.12 * moleScale);
   moleGroup.add(bellyMesh);
 
-  // Red Neckerchief / Chef Scarf for standard, tough, boss
-  if (type === 'standard' || type === 'boss' || type === 'tough') {
+  // Red Neckerchief / Chef Scarf for standard
+  if (type === 'standard') {
     const scarfGeom = new THREE.TorusGeometry(0.54 * moleScale, 0.06 * moleScale, 8, 20);
-    const scarfMat = new THREE.MeshStandardMaterial({ color: type === 'boss' ? 0xd97706 : 0xdc2626, roughness: 0.5 });
+    const scarfMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 });
     const scarf = new THREE.Mesh(scarfGeom, scarfMat);
     scarf.rotation.x = Math.PI / 2;
     scarf.position.set(0, 0.85 * moleScale, 0.05 * moleScale);
     moleGroup.add(scarf);
   }
+
+
 
   // 4. Snout & Nose
   const snoutGeom = new THREE.SphereGeometry(0.24 * moleScale, 16, 12);
@@ -325,12 +279,13 @@ export function createMoleMesh(type: MoleType, theme: string): THREE.Group {
   noseMesh.position.set(0, 1.02 * moleScale, 0.68 * moleScale);
   moleGroup.add(noseMesh);
 
-  // 5. Italian Chef Mustache (Added to all pizza chef moles)
-  if (type !== 'bomb') {
-    const mustache = createItalianMustache(moleScale * (type === 'boss' ? 1.4 : 1.0), type !== 'golden');
+  // 5. Italian Chef Mustache (Added to standard and fast moles only)
+  if (type === 'standard' || type === 'fast') {
+    const mustache = createItalianMustache(moleScale, true);
     mustache.position.set(0, 0.92 * moleScale, 0.65 * moleScale);
     moleGroup.add(mustache);
   }
+
 
   // 6. Cute Buck Teeth
   const toothGeom = new THREE.BoxGeometry(0.08 * moleScale, 0.12 * moleScale, 0.04 * moleScale);
@@ -440,268 +395,33 @@ export function createMoleMesh(type: MoleType, theme: string): THREE.Group {
     moleGroup.add(box);
   }
 
-  // --- TOUGH MOLE: "Chef Sartén de Hierro" (Heavy Cast-Iron Skillet Helmet & 3-Pip Health Bar) ---
-  else if (type === 'tough') {
-    // Cast-iron frying pan upside down as a helmet
-    const panGeom = new THREE.CylinderGeometry(0.65, 0.6, 0.22, 18);
-    const panMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.95,
-      roughness: 0.2,
-    });
-    const pan = new THREE.Mesh(panGeom, panMat);
-    pan.position.set(0, 1.45, 0);
-    pan.name = 'tough_pan_helmet';
-    moleGroup.add(pan);
-
-    // Long pan handle sticking out to the right
-    const panHandleGeom = new THREE.CylinderGeometry(0.06, 0.07, 0.7, 10);
-    const panHandle = new THREE.Mesh(panHandleGeom, panMat);
-    panHandle.rotation.z = Math.PI / 2;
-    panHandle.position.set(0.95, 1.45, 0);
-    moleGroup.add(panHandle);
-
-    // Iron Chef Apron Armor Plate
-    const apronGeom = new THREE.BoxGeometry(0.65, 0.55, 0.08);
-    const apron = new THREE.Mesh(apronGeom, panMat);
-    apron.position.set(0, 0.45, 0.6);
-    moleGroup.add(apron);
-
-    // 3-Pip 3D Floating Health Bar
-    const healthGroup = new THREE.Group();
-    healthGroup.name = 'health_bar_group';
-    healthGroup.position.set(0, 1.95, 0);
-
-    const barBg = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.08), new THREE.MeshBasicMaterial({ color: 0x0f172a }));
-    healthGroup.add(barBg);
-
-    [-0.2, 0, 0.2].forEach((xOffset, i) => {
-      const pip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.1), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
-      pip.position.set(xOffset, 0, 0.01);
-      pip.name = `health_pip_${i}`;
-      healthGroup.add(pip);
-    });
-
-    moleGroup.add(healthGroup);
-  }
-
-  // --- HELMET MOLE: "Maestro Hornero" (Cheese Grater & Oven Hardhat with 2-Pip Health Bar) ---
-  else if (type === 'helmet') {
-    const helmetGeom = new THREE.SphereGeometry(0.62, 18, 14, 0, Math.PI * 2, 0, Math.PI / 1.7);
-    const helmetMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      metalness: 0.6,
-      roughness: 0.3,
-    });
-    const helmetMesh = new THREE.Mesh(helmetGeom, helmetMat);
-    helmetMesh.position.set(0, 1.25, 0.02);
-    helmetMesh.rotation.x = -0.15;
-    moleGroup.add(helmetMesh);
-
-    // Brim
-    const brimGeom = new THREE.TorusGeometry(0.63, 0.06, 8, 20);
-    const brimMesh = new THREE.Mesh(brimGeom, helmetMat);
-    brimMesh.rotation.x = Math.PI / 2 - 0.15;
-    brimMesh.position.set(0, 1.15, 0.05);
-    moleGroup.add(brimMesh);
-
-    // Front Oven Baker Lantern
-    const lampGeom = new THREE.CylinderGeometry(0.08, 0.1, 0.08, 10);
-    const lampMat = new THREE.MeshStandardMaterial({
-      color: 0xfef08a,
-      emissive: 0xfacc15,
-      emissiveIntensity: 0.8,
-    });
-    const lamp = new THREE.Mesh(lampGeom, lampMat);
-    lamp.rotation.x = Math.PI / 2;
-    lamp.position.set(0, 1.32, 0.58);
-    moleGroup.add(lamp);
-
-    // 2-Pip Health Bar
-    const healthGroup = new THREE.Group();
-    healthGroup.name = 'health_bar_group';
-    healthGroup.position.set(0, 1.8, 0);
-
-    const barBg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.09, 0.08), new THREE.MeshBasicMaterial({ color: 0x0f172a }));
-    healthGroup.add(barBg);
-
-    [-0.12, 0.12].forEach((xOffset, i) => {
-      const pip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.1), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
-      pip.position.set(xOffset, 0, 0.01);
-      pip.name = `health_pip_${i}`;
-      healthGroup.add(pip);
-    });
-
-    moleGroup.add(healthGroup);
-  }
-
-  // --- GOLDEN MOLE: "Trufa de Oro 24K & Parmesano Real" (Melted Gold Cheese & Tiara) ---
-  else if (type === 'golden') {
-    // Golden Pizza Slice Medallion on Chest
-    const medalGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.04, 16);
-    const medalMat = new THREE.MeshStandardMaterial({
-      color: 0xfef08a,
-      metalness: 0.98,
-      roughness: 0.1,
-      emissive: 0xf59e0b,
-      emissiveIntensity: 0.6,
-    });
-    const medal = new THREE.Mesh(medalGeom, medalMat);
-    medal.rotation.x = Math.PI / 2;
-    medal.position.set(0, 0.48, 0.6);
-    moleGroup.add(medal);
-
-    // 24K Golden Parmesan Wheel Crown
-    const tiaraGeom = new THREE.CylinderGeometry(0.42, 0.35, 0.25, 8, 1, true);
-    const tiara = new THREE.Mesh(tiaraGeom, medalMat);
-    tiara.position.set(0, 1.55, 0);
-    tiara.name = 'golden_tiara';
-    moleGroup.add(tiara);
-  }
-
-  // --- RAINBOW MOLE: "Cuatro Quesos Supremo" (Galaxy Four-Cheese Star & Orbiting Gems) ---
-  else if (type === 'rainbow') {
-    const starGeom = new THREE.OctahedronGeometry(0.26, 0);
-    const starMat = new THREE.MeshStandardMaterial({
-      color: 0xf472b6,
-      metalness: 0.2,
-      roughness: 0.1,
-      emissive: 0xc084fc,
-      emissiveIntensity: 0.8,
-    });
-    const star = new THREE.Mesh(starGeom, starMat);
-    star.position.set(0, 1.7, 0);
-    star.name = 'crystal_star_rainbow';
-    moleGroup.add(star);
-
-    // Orbiting Pizza Topping Gems
-    const gemColors = [0xef4444, 0xfacc15, 0x10b981];
-    gemColors.forEach((color, i) => {
-      const gem = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.09, 0),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7 })
-      );
-      gem.position.set(Math.cos((i * Math.PI * 2) / 3) * 0.65, 1.4, Math.sin((i * Math.PI * 2) / 3) * 0.65);
-      gem.name = `prismatic_gem_${i}`;
-      moleGroup.add(gem);
-    });
-  }
-
-  // --- PHANTOM MOLE: "Vapor de Masa Madre" (Aromas of Fresh Baked Pizza) ---
-  else if (type === 'phantom') {
-    const ringGeom = new THREE.TorusGeometry(0.68, 0.04, 8, 24);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xa5b4fc, transparent: true, opacity: 0.7 });
-    const ring = new THREE.Mesh(ringGeom, ringMat);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(0, 1.0, 0);
-    ring.name = 'phantom_ring';
-    moleGroup.add(ring);
-  }
-
-  // --- BOMB MOLE: "Piña Prohibida / Chile Habanero Explosivo" (Fiery Fuse & Warning Skull Eyes) ---
+  // --- BOMB MOLE: "Piña Prohibida / Chile Habanero Explosivo" (Simple Fuse & Warning Skull Eyes) ---
   else if (type === 'bomb') {
     // Volcanic Pepper / Bomb Top Stem
-    const stemGeom = new THREE.CylinderGeometry(0.12, 0.18, 0.15, 10);
+    const stemGeom = new THREE.CylinderGeometry(0.12, 0.18, 0.15, 8);
     const stemMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.8 });
     const stem = new THREE.Mesh(stemGeom, stemMat);
     stem.position.set(0, 1.42, 0);
     moleGroup.add(stem);
 
-    // Burning Spark Fuse
-    const fuseCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 1.48, 0),
-      new THREE.Vector3(0.08, 1.65, 0.04),
-      new THREE.Vector3(0.02, 1.82, -0.02),
-    ]);
-    const fuseGeom = new THREE.TubeGeometry(fuseCurve, 8, 0.035, 6, false);
+    // Simple fuse (CylinderGeometry is cheaper than TubeGeometry)
+    const fuseGeom = new THREE.CylinderGeometry(0.03, 0.03, 0.38, 6);
     const fuseMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.9 });
     const fuseMesh = new THREE.Mesh(fuseGeom, fuseMat);
+    fuseMesh.position.set(0.05, 1.62, 0);
+    fuseMesh.rotation.z = 0.4;
     moleGroup.add(fuseMesh);
 
-    const sparkGeom = new THREE.SphereGeometry(0.1, 8, 8);
+    // Spark at top of fuse
+    const sparkGeom = new THREE.SphereGeometry(0.08, 6, 6);
     const sparkMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
     const sparkMesh = new THREE.Mesh(sparkGeom, sparkMat);
-    sparkMesh.position.set(0.02, 1.84, -0.02);
+    sparkMesh.position.set(0.12, 1.82, 0);
     sparkMesh.name = 'bomb_spark';
     moleGroup.add(sparkMesh);
   }
 
-  // --- FROST MOLE: "Gelato Criogénico" (Mint Leaf & 3 Floating Ice Shards) ---
-  else if (type === 'frost') {
-    // Mint leaf on head
-    const mintLeaf = new THREE.Mesh(
-      new THREE.SphereGeometry(0.16, 8, 8),
-      new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.4 })
-    );
-    mintLeaf.scale.set(0.6, 0.08, 1.2);
-    mintLeaf.position.set(0, 1.5, 0);
-    mintLeaf.rotation.x = 0.4;
-    moleGroup.add(mintLeaf);
 
-    for (let i = 0; i < 3; i++) {
-      const angle = (i * Math.PI * 2) / 3;
-      const crystalGeom = new THREE.OctahedronGeometry(0.14, 0);
-      const crystalMat = new THREE.MeshStandardMaterial({
-        color: 0xe0f2fe,
-        metalness: 0.3,
-        roughness: 0.1,
-        transparent: true,
-        opacity: 0.85,
-        emissive: 0x38bdf8,
-        emissiveIntensity: 0.4,
-      });
-      const crystal = new THREE.Mesh(crystalGeom, crystalMat);
-      crystal.position.set(Math.cos(angle) * 0.65, 1.35 + i * 0.1, Math.sin(angle) * 0.65);
-      crystal.name = `frost_crystal_${i}`;
-      moleGroup.add(crystal);
-    }
-  }
-
-  // --- BOSS MOLE: "Don Quesone - El Padrino de la Masa" (Imperial Toque, Golden Pizza Medallion & 5-Pip Health Bar) ---
-  else if (type === 'boss') {
-    // Imperial Grand Chef Toque Blanche with Italian Tricolor Ribbon
-    const imperialHat = createChefHat(1.4, true);
-    imperialHat.position.set(0, 1.7 * moleScale, 0);
-    imperialHat.name = 'boss_crown';
-    moleGroup.add(imperialHat);
-
-    // Large Golden Pizza Cutter Badge on Chest
-    const badgeGeom = new THREE.CylinderGeometry(0.24 * moleScale, 0.24 * moleScale, 0.05, 18);
-    const badgeMat = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      metalness: 0.95,
-      roughness: 0.15,
-      emissive: 0xeab308,
-      emissiveIntensity: 0.5,
-    });
-    const badge = new THREE.Mesh(badgeGeom, badgeMat);
-    badge.rotation.x = Math.PI / 2;
-    badge.position.set(0, 0.55 * moleScale, 0.65 * moleScale);
-    moleGroup.add(badge);
-
-    // 5-Pip Boss 3D Health Bar
-    const healthGroup = new THREE.Group();
-    healthGroup.name = 'health_bar_group';
-    healthGroup.position.set(0, 2.45 * moleScale, 0);
-
-    const barBg = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.14, 0.1),
-      new THREE.MeshBasicMaterial({ color: 0x0f172a })
-    );
-    healthGroup.add(barBg);
-
-    [-0.44, -0.22, 0, 0.22, 0.44].forEach((xOffset, i) => {
-      const pip = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, 0.1, 0.12),
-        new THREE.MeshBasicMaterial({ color: 0xef4444 })
-      );
-      pip.position.set(xOffset, 0, 0.01);
-      pip.name = `health_pip_${i}`;
-      healthGroup.add(pip);
-    });
-
-    moleGroup.add(healthGroup);
-  }
 
   return moleGroup;
 }

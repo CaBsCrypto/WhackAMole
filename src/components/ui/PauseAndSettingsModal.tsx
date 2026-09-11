@@ -297,17 +297,11 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
                 {(
                   [
                     { type: 'standard' as MoleType, name: 'Standard', emoji: '🍕', color: 'border-red-500/50 text-red-300 bg-red-950/40' },
-                    { type: 'golden' as MoleType, name: 'Golden', emoji: '✨', color: 'border-amber-500/50 text-amber-300 bg-amber-950/40' },
                     { type: 'fast' as MoleType, name: 'Fast', emoji: '⚡', color: 'border-cyan-500/50 text-cyan-300 bg-cyan-950/40' },
-                    { type: 'tough' as MoleType, name: 'Tough', emoji: '🛡️', color: 'border-slate-400/50 text-slate-300 bg-slate-900/60' },
                     { type: 'bomb' as MoleType, name: 'Bomb', emoji: '💣', color: 'border-rose-600/50 text-rose-300 bg-rose-950/40' },
-                    { type: 'helmet' as MoleType, name: 'Helmet', emoji: '⛑️', color: 'border-yellow-500/50 text-yellow-300 bg-yellow-950/40' },
-                    { type: 'frost' as MoleType, name: 'Frost', emoji: '❄️', color: 'border-sky-400/50 text-sky-300 bg-sky-950/40' },
-                    { type: 'rainbow' as MoleType, name: 'Rainbow', emoji: '🌈', color: 'border-purple-400/50 text-purple-300 bg-purple-950/40' },
-                    { type: 'phantom' as MoleType, name: 'Phantom', emoji: '👻', color: 'border-indigo-400/50 text-indigo-300 bg-indigo-950/40' },
-                    { type: 'boss' as MoleType, name: 'Boss King', emoji: '👑', color: 'border-pink-500/60 text-pink-200 bg-pink-950/50 col-span-2 sm:col-span-1' },
                   ]
                 ).map((item) => (
+
                   <button
                     key={item.type}
                     type="button"

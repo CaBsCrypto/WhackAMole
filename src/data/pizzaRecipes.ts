@@ -23,9 +23,9 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'uncommon',
     color: '#ef4444',
     bgGradient: 'from-red-950/40 to-slate-900/80',
-    droppedBy: ['tough', 'helmet', 'standard'],
+    droppedBy: ['standard', 'bomb'],
     dropChance: 0.42,
-    sourceTip: 'Topos Blindados, Cascos y Estándar',
+    sourceTip: 'Topos Estándar y Bomba',
   },
   {
     id: 'mozzarella_di_bufala',
@@ -36,9 +36,9 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'uncommon',
     color: '#fde047',
     bgGradient: 'from-yellow-950/40 to-slate-900/80',
-    droppedBy: ['frost', 'phantom', 'fast'],
+    droppedBy: ['fast', 'standard'],
     dropChance: 0.4,
-    sourceTip: 'Topos Glaciales, Fantasmas y Rápidos',
+    sourceTip: 'Topos Rápidos y Estándar',
   },
   {
     id: 'spicy_pepperoni',
@@ -49,9 +49,9 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'uncommon',
     color: '#dc2626',
     bgGradient: 'from-rose-950/40 to-slate-900/80',
-    droppedBy: ['bomb', 'tough', 'boss'],
+    droppedBy: ['bomb', 'standard'],
     dropChance: 0.45,
-    sourceTip: 'Topos Bomba (bloqueadas/vaporizadas), Blindados y Jefes',
+    sourceTip: 'Topos Bomba y Estándar',
   },
   {
     id: 'fresh_basil',
@@ -62,9 +62,9 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'common',
     color: '#22c55e',
     bgGradient: 'from-emerald-950/40 to-slate-900/80',
-    droppedBy: ['standard', 'rainbow', 'fast'],
+    droppedBy: ['standard', 'fast'],
     dropChance: 0.48,
-    sourceTip: 'Topos Estándar, Arcoíris y Rápidos',
+    sourceTip: 'Topos Estándar y Rápidos',
   },
   {
     id: 'gorgonzola_cremosa',
@@ -75,9 +75,9 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'rare',
     color: '#38bdf8',
     bgGradient: 'from-sky-950/40 to-slate-900/80',
-    droppedBy: ['phantom', 'helmet', 'tough'],
+    droppedBy: ['fast', 'bomb'],
     dropChance: 0.32,
-    sourceTip: 'Topos Fantasma, Cascos y Blindados',
+    sourceTip: 'Topos Rápidos y Bomba',
   },
   {
     id: 'hot_chili_oil',
@@ -88,9 +88,9 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'rare',
     color: '#ea580c',
     bgGradient: 'from-orange-950/40 to-slate-900/80',
-    droppedBy: ['boss', 'bomb'],
+    droppedBy: ['bomb'],
     dropChance: 0.38,
-    sourceTip: '¡Garantizado en Horno de Pizza Abrasador y Topos Jefe!',
+    sourceTip: '¡Garantizado en Horno de Pizza Abrasador!',
   },
   {
     id: 'black_truffle',
@@ -101,10 +101,11 @@ export const PIZZA_INGREDIENTS: PizzaIngredient[] = [
     rarity: 'legendary',
     color: '#eab308',
     bgGradient: 'from-amber-950/60 to-purple-950/60',
-    droppedBy: ['golden', 'rainbow', 'boss'],
+    droppedBy: ['fast', 'bomb'],
     dropChance: 0.65,
-    sourceTip: 'Topos Dorados 24K, Arcoíris Astral y Jefes',
+    sourceTip: 'Topos Rápidos y Bomba',
   },
+
 ];
 
 export const PIZZA_RECIPES: PizzaRecipe[] = [

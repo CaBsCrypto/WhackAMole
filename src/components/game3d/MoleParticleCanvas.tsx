@@ -75,7 +75,7 @@ const MOLE_THEMES: Record<
     glowColor: '#f97316',
     flashColor: 'rgba(249, 115, 22, 0.7)',
     shapes: ['circle', 'streak'],
-    baseCount: 24,
+    baseCount: 20,
     speedMultiplier: 1.0,
   },
   fast: {
@@ -84,17 +84,8 @@ const MOLE_THEMES: Record<
     glowColor: '#38bdf8',
     flashColor: 'rgba(56, 189, 248, 0.8)',
     shapes: ['streak', 'diamond', 'circle'],
-    baseCount: 28,
+    baseCount: 22,
     speedMultiplier: 1.45,
-  },
-  golden: {
-    colors: ['#facc15', '#fbbf24', '#f59e0b', '#fef08a', '#ffffff', '#d97706'],
-    ringColor: 'rgba(250, 204, 21, 0.95)',
-    glowColor: '#f59e0b',
-    flashColor: 'rgba(254, 240, 138, 0.85)',
-    shapes: ['star', 'diamond', 'circle'],
-    baseCount: 34,
-    speedMultiplier: 1.15,
   },
   bomb: {
     colors: ['#dc2626', '#ea580c', '#f59e0b', '#1e293b', '#fee2e2', '#7f1d1d'],
@@ -102,64 +93,11 @@ const MOLE_THEMES: Record<
     glowColor: '#ea580c',
     flashColor: 'rgba(239, 68, 68, 0.9)',
     shapes: ['circle', 'streak'],
-    baseCount: 10,
-    speedMultiplier: 1.25,
-  },
-  tough: {
-    colors: ['#94a3b8', '#cbd5e1', '#64748b', '#f97316', '#e2e8f0', '#475569'],
-    ringColor: 'rgba(148, 163, 184, 0.9)',
-    glowColor: '#f97316',
-    flashColor: 'rgba(203, 213, 225, 0.75)',
-    shapes: ['diamond', 'circle'],
-    baseCount: 26,
-    speedMultiplier: 0.95,
-  },
-  helmet: {
-    colors: ['#f59e0b', '#d97706', '#fbbf24', '#78350f', '#fef3c7', '#b45309'],
-    ringColor: 'rgba(245, 158, 11, 0.9)',
-    glowColor: '#fbbf24',
-    flashColor: 'rgba(251, 191, 36, 0.8)',
-    shapes: ['diamond', 'circle'],
-    baseCount: 26,
-    speedMultiplier: 1.05,
-  },
-  frost: {
-    colors: ['#38bdf8', '#06b6d4', '#a5f3fc', '#ffffff', '#7dd3fc', '#e0f2fe'],
-    ringColor: 'rgba(56, 189, 248, 0.9)',
-    glowColor: '#06b6d4',
-    flashColor: 'rgba(165, 243, 252, 0.85)',
-    shapes: ['diamond', 'star', 'circle'],
-    baseCount: 30,
-    speedMultiplier: 1.1,
-  },
-  rainbow: {
-    colors: ['#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#06b6d4', '#f43f5e', '#ffffff'],
-    ringColor: 'rgba(236, 72, 153, 0.95)',
-    glowColor: '#8b5cf6',
-    flashColor: 'rgba(236, 72, 153, 0.85)',
-    shapes: ['star', 'circle', 'diamond'],
-    baseCount: 38,
-    speedMultiplier: 1.25,
-  },
-  phantom: {
-    colors: ['#a855f7', '#c084fc', '#8b5cf6', '#22d3ee', '#f3e8ff', '#9333ea'],
-    ringColor: 'rgba(168, 85, 247, 0.9)',
-    glowColor: '#c084fc',
-    flashColor: 'rgba(192, 132, 252, 0.8)',
-    shapes: ['circle', 'diamond'],
-    baseCount: 26,
-    speedMultiplier: 0.9,
-  },
-  boss: {
-    colors: ['#e11d48', '#be123c', '#f59e0b', '#fbbf24', '#ffffff', '#7f1d1d', '#ffe4e6'],
-    ringColor: 'rgba(225, 29, 72, 0.98)',
-    glowColor: '#fbbf24',
-    flashColor: 'rgba(251, 191, 36, 0.9)',
-    shapes: ['star', 'diamond', 'streak', 'circle'],
-    baseCount: 52,
-    speedMultiplier: 1.6,
+    baseCount: 8,
+    speedMultiplier: 1.0,
   },
 };
+
 
 export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?: string }>(
   ({ className = '' }, ref) => {
@@ -399,6 +337,9 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         resizeCanvas();
         const theme = MOLE_THEMES[type] || MOLE_THEMES.standard;
 
+        // Performance cap: skip if too many particles already active
+        if (particlesRef.current.length > 50) return;
+
         const countMult = (isCrit ? 1.4 : 1.0) * (isDefeated ? 1.25 : 1.0);
         const particleCount = Math.round(theme.baseCount * countMult);
 
@@ -406,7 +347,7 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         flashesRef.current.push({
           x,
           y,
-          radius: (isCrit ? 48 : (type === 'bomb' ? 30 : 34)) * (type === 'boss' ? 1.7 : 1.0),
+          radius: isCrit ? 48 : (type === 'bomb' ? 30 : 34),
           color: theme.flashColor,
           alpha: 0.85,
           life: 0,
@@ -418,21 +359,21 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
           x,
           y,
           radius: 8,
-          maxRadius: (isCrit ? 95 : 72) * (type === 'boss' ? 1.7 : type === 'bomb' ? 1.3 : 1.0),
+          maxRadius: (isCrit ? 95 : 72) * (type === 'bomb' ? 1.3 : 1.0),
           color: theme.ringColor,
-          lineWidth: isCrit || type === 'boss' ? 5.5 : 3.5,
+          lineWidth: isCrit ? 5.5 : 3.5,
           life: 0,
-          maxLife: type === 'boss' ? 0.42 : 0.3,
+          maxLife: 0.3,
         });
 
-        // Extra secondary delayed ring for Boss or Critical Hits (bomb excluded for zero-lag mobile)
-        if ((type === 'boss' || isCrit) && type !== 'bomb') {
+        // Extra secondary ring on crits (bomb excluded for zero-lag mobile)
+        if (isCrit && type !== 'bomb') {
           setTimeout(() => {
             ringsRef.current.push({
               x,
               y,
               radius: 12,
-              maxRadius: (type === 'boss' ? 135 : 110),
+              maxRadius: 110,
               color: theme.colors[0] ? `${theme.colors[0]}cc` : 'rgba(255, 255, 255, 0.8)',
               lineWidth: 2.5,
               life: 0,
@@ -453,7 +394,7 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
 
           const color = theme.colors[Math.floor(Math.random() * theme.colors.length)];
           const shape = theme.shapes[Math.floor(Math.random() * theme.shapes.length)];
-          const baseSize = (2.8 + Math.random() * 4.2) * (isCrit ? 1.35 : 1.0) * (type === 'boss' ? 1.4 : 1.0);
+          const baseSize = (2.8 + Math.random() * 4.2) * (isCrit ? 1.35 : 1.0);
 
           particlesRef.current.push({
             x: x + (Math.random() - 0.5) * 8,
@@ -467,8 +408,8 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
             life: 0,
             maxLife: type === 'bomb'
               ? 0.22 + Math.random() * 0.10
-              : 0.4 + Math.random() * (type === 'boss' ? 0.45 : 0.3),
-            gravity: type === 'frost' ? 3.5 : type === 'bomb' ? 6.5 : 5.0,
+              : 0.4 + Math.random() * 0.3,
+            gravity: type === 'bomb' ? 6.5 : 5.0,
             drag: 0.945,
             shape,
             rotation: Math.random() * Math.PI * 2,
@@ -477,7 +418,8 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         }
 
         // 4. Auxiliary Micro-Sparks / Glitter (omitted for bomb)
-        const glitterCount = type === 'bomb' ? 0 : (isCrit || type === 'golden' || type === 'rainbow' ? 14 : 6);
+        const glitterCount = type === 'bomb' ? 0 : (isCrit ? 14 : 6);
+
         for (let g = 0; g < glitterCount; g++) {
           const angle = Math.random() * Math.PI * 2;
           const speed = (4.0 + Math.random() * 7.0) * theme.speedMultiplier;

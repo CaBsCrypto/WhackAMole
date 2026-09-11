@@ -1,14 +1,7 @@
 export type MoleType =
   | 'standard'
   | 'fast'
-  | 'tough'
-  | 'golden'
-  | 'bomb'
-  | 'helmet'
-  | 'frost'
-  | 'rainbow'
-  | 'phantom'
-  | 'boss';
+  | 'bomb';
 
 export type GameMode = 'arcade' | 'story' | 'multiplayer' | 'boss_raid';
 
@@ -17,13 +10,7 @@ export type GameTheme = 'garden' | 'arcade' | 'cyber' | 'volcano';
 export type MolePattern =
   | 'normal'
   | 'lightning_fast'
-  | 'heavy_armored'
-  | 'spiral_golden'
-  | 'prismatic_levitate'
-  | 'fuse_burn'
-  | 'frost_freeze'
-  | 'phase_glitch'
-  | 'boss_slam';
+  | 'fuse_burn';
 
 export interface MoleData {
   id: string;

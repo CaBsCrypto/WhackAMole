@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Settings,
   Play,
+  Camera,
   ExternalLink,
 } from 'lucide-react';
 import {
@@ -41,8 +42,8 @@ const GestureReticle = React.lazy(() =>
 const CameraTutorialModal = React.lazy(() =>
   import('./components/camera/CameraTutorialModal').then((m) => ({ default: m.CameraTutorialModal }))
 );
-const CameraSmashToStart = React.lazy(() =>
-  import('./components/camera/CameraSmashToStart').then((m) => ({ default: m.CameraSmashToStart }))
+const CameraSmashStartModal = React.lazy(() =>
+  import('./components/camera/CameraSmashStartModal').then((m) => ({ default: m.CameraSmashStartModal }))
 );
 const MultiplayerLobby = React.lazy(() =>
   import('./components/ui/MultiplayerLobby').then((m) => ({ default: m.MultiplayerLobby }))
@@ -83,6 +84,7 @@ export default function App() {
   // 1b. Vision & Control Mode State ('classic' | 'camera')
   const [controlMode, setControlMode] = useState<ControlMode>(() => profile.settings.controlMode || 'classic');
   const [showCameraTutorial, setShowCameraTutorial] = useState<boolean>(false);
+  const [showCameraSmashModal, setShowCameraSmashModal] = useState<boolean>(false);
   const moleSceneRef = useRef<MoleScene3DRef | null>(null);
 
   const handleSetControlMode = useCallback((mode: ControlMode) => {
@@ -295,12 +297,12 @@ export default function App() {
   // Hand Tracking Handlers for 60 FPS Cursor and Whack Actions
   const handleCameraCursorMove = useCallback((cursor: HandCursorData) => {
     // Only update 3D hammer cursor when playing or on ready menu
-    if (gameState === 'playing' || (gameState === 'menu' && !showCameraTutorial && !activeModal)) {
+    if (gameState === 'playing' || (gameState === 'menu' && !showCameraTutorial && !showCameraSmashModal && !activeModal)) {
       moleSceneRef.current?.setGestureCursor(cursor.ndcX, cursor.ndcY);
     }
 
     // R3: Only test hover against #btn_play_arcade when in menu AND no modal or tutorial is active
-    if (gameState === 'menu' && !showCameraTutorial && !activeModal) {
+    if (gameState === 'menu' && !showCameraTutorial && !showCameraSmashModal && !activeModal) {
       const btn = document.getElementById('btn_play_arcade');
       if (btn) {
         const rect = btn.getBoundingClientRect();
@@ -316,12 +318,12 @@ export default function App() {
     } else {
       setIsPlayHoveredByHand(false);
     }
-  }, [gameState, showCameraTutorial, activeModal]);
+  }, [gameState, showCameraTutorial, showCameraSmashModal, activeModal]);
 
   const handleCameraWhack = useCallback(
     (cursor: HandCursorData) => {
       // Disallow all air whacks if any modal/tutorial is open, or if paused/gameover/lobby
-      if (showCameraTutorial || activeModal || gameState === 'paused' || gameState === 'gameover' || gameState === 'multiplayer_lobby') {
+      if (showCameraTutorial || showCameraSmashModal || activeModal || gameState === 'paused' || gameState === 'gameover' || gameState === 'multiplayer_lobby') {
         return;
       }
 
@@ -329,7 +331,7 @@ export default function App() {
         sfx.playGestureConfirm();
         moleSceneRef.current?.triggerGestureWhack(cursor.ndcX, cursor.ndcY, cursor.clientX, cursor.clientY);
       } else if (gameState === 'menu') {
-        // R3: Hit testing against play button (#btn_play_arcade) using getBoundingClientRect
+        // Hit testing against play button (#btn_play_arcade) using getBoundingClientRect
         const btn = document.getElementById('btn_play_arcade');
         let isPlayHit = false;
         if (btn) {
@@ -352,11 +354,15 @@ export default function App() {
         if (isPlayHit) {
           sfx.playGestureConfirm();
           setIsPlayHoveredByHand(false);
-          handleStartArcadeRef.current('arcade');
+          if (controlMode === 'camera') {
+            setShowCameraSmashModal(true);
+          } else {
+            handleStartArcadeRef.current('arcade');
+          }
         }
       }
     },
-    [gameState, showCameraTutorial, activeModal]
+    [gameState, showCameraTutorial, showCameraSmashModal, activeModal, controlMode]
   );
 
   const handTracking = useHandTracking({
@@ -1302,32 +1308,37 @@ export default function App() {
                       <ModeSelector controlMode={controlMode} onChange={handleSetControlMode} />
                     </div>
 
-                    {/* Action Button: Interactive 'Smash to Start' in Camera Mode or Tactile Play Button in Classic Mode */}
+                    {/* Action Button: Sleek Play Button that launches game or opens Camera calibration modal */}
                     <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center justify-center">
-                      {controlMode === 'camera' ? (
-                        <React.Suspense fallback={<div className="w-full h-40 bg-slate-800/60 rounded-3xl animate-pulse" />}>
-                          <CameraSmashToStart
-                            cursor={handTracking.cursor}
-                            gesture={handTracking.gesture}
-                            status={handTracking.status}
-                            onSmashStart={() => handleStartArcade('arcade')}
-                            onOpenTutorial={() => setShowCameraTutorial(true)}
-                            onSwitchToClassic={() => handleSetControlMode('classic')}
-                          />
-                        </React.Suspense>
-                      ) : (
-                        <button
-                          id="btn_play_arcade"
-                          type="button"
-                          onClick={() => handleStartArcade('arcade')}
-                          className={`w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer ${
-                            isPlayHoveredByHand ? 'scale-105 ring-4 ring-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.85)]' : ''
-                          }`}
-                        >
-                          <Play className="w-6 h-6 fill-current" />
-                          ¡Defender Cocina!
-                        </button>
-                      )}
+                      <button
+                        id="btn_play_arcade"
+                        type="button"
+                        onClick={() => {
+                          sfx.playButtonClick();
+                          if (controlMode === 'camera') {
+                            setShowCameraSmashModal(true);
+                          } else {
+                            handleStartArcade('arcade');
+                          }
+                        }}
+                        className={`w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer ${
+                          isPlayHoveredByHand && controlMode === 'camera'
+                            ? 'scale-105 ring-4 ring-amber-300 shadow-[0_0_40px_rgba(245,158,11,0.85)] border-amber-400 -translate-y-1'
+                            : ''
+                        }`}
+                      >
+                        {controlMode === 'camera' ? (
+                          <>
+                            <Camera className="w-6 h-6 text-amber-200 animate-pulse" />
+                            <span>¡Jugar con Cámara!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-6 h-6 fill-current" />
+                            <span>¡Defender Cocina!</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </section>
@@ -1531,6 +1542,23 @@ export default function App() {
             status={handTracking.status}
             cursor={handTracking.cursor}
             gesture={handTracking.gesture}
+          />
+        </React.Suspense>
+      )}
+
+      {/* Camera Mode Smash-To-Start Calibration & Launch Modal */}
+      {showCameraSmashModal && (
+        <React.Suspense fallback={null}>
+          <CameraSmashStartModal
+            isOpen={showCameraSmashModal}
+            onClose={() => setShowCameraSmashModal(false)}
+            onStartGame={() => {
+              setShowCameraSmashModal(false);
+              handleStartArcade('arcade');
+            }}
+            cursor={handTracking.cursor}
+            gesture={handTracking.gesture}
+            status={handTracking.status}
           />
         </React.Suspense>
       )}

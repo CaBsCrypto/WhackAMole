@@ -1,23 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Swords,
-  ShoppingBag,
-  User,
-  Trophy,
-  Calendar,
   Settings,
-  Flame,
-  Sparkles,
-  Volume2,
-  VolumeX,
   Play,
-  RotateCcw,
-  Shield,
-  Snowflake,
-  Zap,
   ExternalLink,
-  Globe,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -32,7 +18,7 @@ import {
   HandCursorData,
   HandTrackingStatus,
 } from './types';
-import { storageService, DEFAULT_HAMMERS, DEFAULT_POWERUPS } from './services/storage';
+import { storageService, DEFAULT_HAMMERS } from './services/storage';
 import { sfx } from './services/sfx';
 import { dynamicSoundtrack } from './services/soundtrack';
 import { multiplayerClient } from './services/multiplayer';
@@ -85,12 +71,7 @@ const MoleCodexModal = React.lazy(() =>
 const PizzaRecipeCodex = React.lazy(() =>
   import('./components/modals/PizzaRecipeCodex').then((m) => ({ default: m.PizzaRecipeCodex }))
 );
-import {
-  rollIngredientDropForMole,
-  calculateRecipeBuffs,
-  PIZZA_RECIPES,
-  checkRecipeRequirements,
-} from './data/pizzaRecipes';
+
 
 export default function App() {
   // 1. Profile & Settings State
@@ -1098,21 +1079,29 @@ export default function App() {
             className="relative z-30 flex items-center justify-between px-4 md:px-6 py-3 bg-slate-900/85 backdrop-blur-xl border-b border-white/10 shadow-xl"
           >
             {/* Brand, Avatar & Level Progress */}
-            <div className="flex items-center space-x-3 md:space-x-4">
+            <div className="flex items-center space-x-3 md:space-x-4 min-w-0">
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   sfx.playButtonClick();
                   setActiveModal('avatar');
                 }}
-                className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gradient-to-tr from-orange-500 to-yellow-300 border-2 border-white/20 shadow-[0_0_15px_rgba(249,115,22,0.4)] flex items-center justify-center text-lg md:text-xl font-black text-slate-900 cursor-pointer hover:scale-105 transition-transform"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    sfx.playButtonClick();
+                    setActiveModal('avatar');
+                  }
+                }}
+                className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-gradient-to-tr from-orange-500 to-yellow-300 border-2 border-white/20 shadow-[0_0_15px_rgba(249,115,22,0.4)] flex items-center justify-center text-lg md:text-xl font-black text-slate-900 cursor-pointer hover:scale-105 transition-transform"
                 title="Edit Avatar"
               >
                 {profile.name ? profile.name.slice(0, 2).toUpperCase() : 'WM'}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm md:text-base font-bold leading-tight text-white">{profile.name}</h2>
+                  <h2 className="text-sm md:text-base font-bold leading-tight text-white truncate max-w-[110px] sm:max-w-none">{profile.name}</h2>
                   <div className="hidden sm:flex items-center text-[10px] text-orange-400 space-x-1.5">
                     <span className="bg-slate-800 px-2 py-0.5 rounded font-black tracking-wider border border-white/5">
                       LVL {profile.level}
@@ -1122,14 +1111,14 @@ export default function App() {
                   </div>
                 </div>
                 <div className="sm:hidden flex items-center text-[10px] text-orange-400 gap-1.5 mt-0.5">
-                  <span className="bg-slate-800 px-1.5 py-0.2 rounded font-black">LVL {profile.level}</span>
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded font-black">LVL {profile.level}</span>
                   <span className="text-slate-400 truncate max-w-[80px]">{profile.avatar.title}</span>
                 </div>
               </div>
             </div>
 
             {/* Center/Right: Currency & Stats Card in Immersive UI Style */}
-            <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="flex items-center space-x-2 md:space-x-4 shrink-0">
               <div className="flex items-center bg-slate-800/80 backdrop-blur-md px-3 sm:px-5 py-1.5 sm:py-2 rounded-2xl border border-white/10 shadow-lg">
                 {/* Coins / Credits */}
                 <div className="flex flex-col items-center px-2 sm:px-4 border-r border-slate-700/80">
@@ -1148,76 +1137,18 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Modal Action Buttons */}
+              {/* Header Actions: Settings & SpicyCrust */}
               <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
-                  id="nav_btn_shop"
-                  onClick={() => {
-                    sfx.playButtonClick();
-                    setActiveModal('shop');
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(245,158,11,0.3)] transition"
-                  title="Armory & Shop"
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                </button>
-
-                <button
-                  id="nav_btn_avatar"
-                  onClick={() => {
-                    sfx.playButtonClick();
-                    setActiveModal('avatar');
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(6,182,212,0.3)] transition"
-                  title="Avatar Customizer"
-                >
-                  <User className="w-4 h-4" />
-                </button>
-
-                <button
-                  id="nav_btn_codex"
-                  onClick={() => {
-                    sfx.playButtonClick();
-                    setActiveModal('codex');
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(52,211,153,0.3)] transition"
-                  title="Mole Field Guide & Codex"
-                >
-                  <Zap className="w-4 h-4" />
-                </button>
-
-                <button
-                  id="nav_btn_leaderboard"
-                  onClick={() => {
-                    sfx.playButtonClick();
-                    setActiveModal('leaderboard');
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-yellow-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(234,179,8,0.3)] transition"
-                  title="Leaderboards"
-                >
-                  <Trophy className="w-4 h-4" />
-                </button>
-
-                <button
-                  id="nav_btn_events"
-                  onClick={() => {
-                    sfx.playButtonClick();
-                    setActiveModal('events');
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-purple-400 rounded-xl flex items-center justify-center border border-white/10 shadow-sm hover:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition"
-                  title="Events & Challenges"
-                >
-                  <Calendar className="w-4 h-4" />
-                </button>
-
-                <button
                   id="nav_btn_settings"
+                  type="button"
                   onClick={() => {
                     sfx.playButtonClick();
                     setActiveModal('settings');
                   }}
                   className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center border border-white/10 shadow-sm transition"
                   title="Settings"
+                  aria-label="Settings"
                 >
                   <Settings className="w-4 h-4" />
                 </button>
@@ -1350,187 +1281,99 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.22 }}
-              className="absolute inset-0 z-20 flex flex-col justify-between p-4 md:p-6 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto"
+              className="absolute inset-0 z-20 flex flex-col items-center p-4 md:p-6 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto overflow-y-auto"
             >
-            {/* Quick Live Info Sidebar / Top Badges (Responsive layout) */}
-            <div className="grid grid-cols-12 gap-4 flex-1 items-center min-h-0">
-              {/* Left Side: Live Activity & Event Card (Visible on md+) */}
-              <aside className="hidden lg:flex col-span-3 flex-col space-y-4 max-h-[480px]">
-                {/* Live Kitchen Feed / Activity Feed */}
-                <div className="flex-1 bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 flex flex-col shadow-xl">
-                  <h3 className="text-xs font-display font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center justify-between">
-                    <span>Cocina en Vivo</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                  </h3>
-                  <div className="flex-1 overflow-hidden flex flex-col space-y-2.5 text-xs">
-                    <div>
-                      <span className="text-amber-400 font-bold">Chef Luigi:</span>{' '}
-                      <span className="text-slate-300">¡El horno de leña está a 450°F! ¡Alerta con los topos!</span>
-                    </div>
-                    <div>
-                      <span className="text-orange-400 font-bold">Ayudante Mario:</span>{' '}
-                      <span className="text-slate-300">¡Recolecta ingredientes para activar los Bonos de Chef!</span>
-                    </div>
-                    <div className="opacity-60 text-[11px]">
-                      <span className="text-slate-500">[Sistema]: Despensa y recetas italianas listas.</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      sfx.playButtonClick();
-                      setActiveModal('pizza_codex');
-                    }}
-                    className="mt-3 h-9 bg-slate-900/80 hover:bg-slate-900 rounded-xl border border-white/5 flex items-center justify-center px-3 text-xs text-amber-300 font-semibold transition cursor-pointer"
-                  >
-                    Abrir Recetario de Pizzas →
-                  </button>
-                </div>
+              {/* Centered Main Menu Hero Area */}
+              <div className="grid grid-cols-12 gap-4 w-full max-w-lg my-auto py-3 pb-8 sm:pb-10">
+                <section className="col-span-12 flex flex-col items-center justify-center text-center px-2">
+                  <div className="max-w-md w-full flex flex-col items-center">
+                    {/* Chef Idle Character in Main Menu with Watch Check, Brow Wipe & Interactive Reactions */}
+                    <ChefIdleCharacter className="mb-2" />
 
-                {/* Special Event Mini Banner */}
-                <div
-                  onClick={() => {
-                    sfx.playButtonClick();
-                    setActiveModal('events');
-                  }}
-                  className="bg-indigo-900/40 hover:bg-indigo-900/60 rounded-3xl border border-indigo-500/20 p-4 cursor-pointer transition shadow-xl"
-                >
-                  <h3 className="text-xs font-display font-bold uppercase text-indigo-300 mb-1.5 tracking-wider">Active Event</h3>
-                  <div className="text-sm font-bold text-white mb-0.5">Lunar Festival Frenzy</div>
-                  <div className="text-[11px] text-indigo-200 mb-2">Collect Golden Moles for 2X credits!</div>
-                  <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-gradient-to-r from-indigo-500 to-amber-400 h-full w-2/3"></div>
-                  </div>
-                </div>
-              </aside>
+                    <h1 className="text-3xl md:text-4xl font-display font-black text-white tracking-wide leading-none mb-2">
+                      Panic at the Pizzeria
+                    </h1>
+                    <p className="text-xs md:text-sm text-slate-300 mb-6 max-w-sm">
+                      ¡Defiende la cocina del Chef de la banda de topos ladrones de pizza con rodillos, palas y cortadores láser en 3D!
+                    </p>
 
-              {/* Center: Hero Title, Equipped Hammer & Main Action Controls */}
-              <section className="col-span-12 lg:col-span-6 flex flex-col items-center justify-center text-center px-2">
-                <div className="max-w-md w-full flex flex-col items-center">
-                  {/* Chef Idle Character in Main Menu with Watch Check, Brow Wipe & Interactive Reactions */}
-                  <ChefIdleCharacter className="mb-2" />
-
-                  <h1 className="text-3xl md:text-4xl font-black text-white tracking-wide leading-none mb-2 font-display">
-                    Panic at the Pizzeria
-                  </h1>
-                  <p className="text-xs md:text-sm text-slate-300 mb-6 max-w-sm">
-                    ¡Defiende la cocina del Chef de la banda de topos ladrones de pizza con rodillos, palas y cortadores láser en 3D!
-                  </p>
-
-                  {/* Equipped Weapon Card */}
-                  <div className="flex items-center justify-between w-full max-w-sm p-3.5 bg-slate-800/70 backdrop-blur-md rounded-2xl border border-white/10 shadow-lg mb-6 text-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-xl">
-                        🥖
+                    {/* Equipped Weapon Card */}
+                    <div className="flex items-center justify-between w-full max-w-sm sm:max-w-md p-3.5 bg-slate-800/70 backdrop-blur-md rounded-2xl border border-white/10 shadow-lg mb-5 text-xs">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl border border-white/20 shadow-md"
+                          style={{
+                            backgroundColor: selectedHammer.color || '#92400e',
+                            boxShadow: selectedHammer.glowColor ? `0 0 12px ${selectedHammer.glowColor}` : undefined,
+                          }}
+                        >
+                          {selectedHammer.headShape === 'uslero' || selectedHammer.id.includes('mallet')
+                            ? '🥖'
+                            : selectedHammer.headShape === 'warhammer'
+                            ? '🪵'
+                            : selectedHammer.headShape === 'cyber' || selectedHammer.headShape === 'magma'
+                            ? '🍕'
+                            : selectedHammer.headShape === 'star' || selectedHammer.headShape === 'donut'
+                            ? '⚡'
+                            : '🔨'}
+                        </div>
+                        <div className="text-left">
+                          <span className="font-bold text-white text-sm block">{selectedHammer.name}</span>
+                          <span className="text-[10px] text-amber-400 font-black tracking-wider uppercase">
+                            Utensilio del Chef • {selectedHammer.specialEffect === 'none' ? 'Tradicional' : selectedHammer.specialEffect.replace(/_/g, ' ')}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <span className="font-bold text-white text-sm block">{selectedHammer.name}</span>
-                        <span className="text-[10px] text-amber-400 font-black tracking-wider uppercase">
-                          Utensilio del Chef • {selectedHammer.specialEffect.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setActiveModal('shop')}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl border border-white/10 transition"
-                    >
-                      Cocina
-                    </button>
-                  </div>
-                  {/* Game Mode Selector (Classic vs MediaPipe Hands) */}
-                  <div className="w-full max-w-sm flex justify-center mb-4">
-                    <ModeSelector controlMode={controlMode} onChange={handleSetControlMode} />
-                  </div>
-
-                  {/* Action Button: Interactive 'Smash to Start' in Camera Mode or Tactile Play Button in Classic Mode */}
-                  <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center justify-center">
-                    {controlMode === 'camera' ? (
-                      <React.Suspense fallback={<div className="w-full h-40 bg-slate-800/60 rounded-3xl animate-pulse" />}>
-                        <CameraSmashToStart
-                          cursor={handTracking.cursor}
-                          gesture={handTracking.gesture}
-                          status={handTracking.status}
-                          onSmashStart={() => handleStartArcade('arcade')}
-                          onOpenTutorial={() => setShowCameraTutorial(true)}
-                          onSwitchToClassic={() => handleSetControlMode('classic')}
-                        />
-                      </React.Suspense>
-                    ) : (
                       <button
-                        id="btn_play_arcade"
-                        onClick={() => handleStartArcade('arcade')}
-                        className="w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer"
+                        type="button"
+                        onClick={() => {
+                          sfx.playButtonClick();
+                          setActiveModal('shop');
+                        }}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl border border-white/10 transition cursor-pointer"
+                        title="Cambiar utensilio"
                       >
-                        <Play className="w-6 h-6 fill-current" />
-                        ¡Defender Cocina!
+                        Cambiar
                       </button>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              {/* Right Side: Quick Shop & Achievements Preview (Visible on lg+) */}
-              <aside className="hidden lg:flex col-span-3 flex-col space-y-4 max-h-[480px]">
-                {/* Shop Teaser */}
-                <div className="bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 shadow-xl">
-                  <h3 className="text-xs font-display font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center justify-between">
-                    <span>Featured Upgrades</span>
-                    <button onClick={() => setActiveModal('shop')} className="text-orange-400 hover:underline text-[10px] cursor-pointer">
-                      View All
-                    </button>
-                  </h3>
-                  <div className="space-y-2">
-                    <div
-                      onClick={() => setActiveModal('shop')}
-                      className="flex items-center p-2 bg-slate-900/60 rounded-xl border border-white/5 cursor-pointer hover:border-white/20 transition"
-                    >
-                      <div className="w-9 h-9 bg-amber-500/20 rounded-lg flex items-center justify-center mr-2.5 text-amber-400 font-bold text-sm">
-                        ⚡
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="text-xs font-display font-bold text-white">Thunder Mallet</div>
-                        <div className="text-[10px] text-slate-400 font-body">+20% Area Dmg</div>
-                      </div>
-                      <div className="text-xs font-black text-orange-400 font-mono">2.5K</div>
+                    </div>
+                    {/* Game Mode Selector (Classic vs MediaPipe Hands) */}
+                    <div className="w-full max-w-sm sm:max-w-md flex justify-center mb-4">
+                      <ModeSelector controlMode={controlMode} onChange={handleSetControlMode} />
                     </div>
 
-                    <div
-                      onClick={() => setActiveModal('shop')}
-                      className="flex items-center p-2 bg-slate-900/60 rounded-xl border border-white/5 cursor-pointer hover:border-white/20 transition"
-                    >
-                      <div className="w-9 h-9 bg-cyan-500/20 rounded-lg flex items-center justify-center mr-2.5 text-cyan-400 font-bold text-sm">
-                        ❄️
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="text-xs font-display font-bold text-white">Time Freeze</div>
-                        <div className="text-[10px] text-slate-400 font-body">+5s Round Time</div>
-                      </div>
-                      <div className="text-xs font-black text-orange-400 font-mono">1.2K</div>
+                    {/* Action Button: Interactive 'Smash to Start' in Camera Mode or Tactile Play Button in Classic Mode */}
+                    <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center justify-center">
+                      {controlMode === 'camera' ? (
+                        <React.Suspense fallback={<div className="w-full h-40 bg-slate-800/60 rounded-3xl animate-pulse" />}>
+                          <CameraSmashToStart
+                            cursor={handTracking.cursor}
+                            gesture={handTracking.gesture}
+                            status={handTracking.status}
+                            onSmashStart={() => handleStartArcade('arcade')}
+                            onOpenTutorial={() => setShowCameraTutorial(true)}
+                            onSwitchToClassic={() => handleSetControlMode('classic')}
+                          />
+                        </React.Suspense>
+                      ) : (
+                        <button
+                          id="btn_play_arcade"
+                          type="button"
+                          onClick={() => handleStartArcade('arcade')}
+                          className={`w-full bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 hover:from-amber-500 hover:via-orange-400 hover:to-red-400 px-8 py-4 rounded-2xl text-lg font-display font-black uppercase tracking-widest shadow-[0_10px_40px_rgba(245,158,11,0.45)] border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all text-white flex items-center justify-center gap-3 cursor-pointer ${
+                            isPlayHoveredByHand ? 'scale-105 ring-4 ring-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.85)]' : ''
+                          }`}
+                        >
+                          <Play className="w-6 h-6 fill-current" />
+                          ¡Defender Cocina!
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-
-                {/* Achievements / Bounty Teaser */}
-                <div className="flex-1 bg-slate-800/50 backdrop-blur-md rounded-3xl border border-white/5 p-4 flex flex-col shadow-xl">
-                  <h3 className="text-xs font-display font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center justify-between">
-                    <span>Weekly Bounty</span>
-                    <button onClick={() => setActiveModal('events')} className="text-indigo-400 hover:underline text-[10px] cursor-pointer">
-                      Details
-                    </button>
-                  </h3>
-                  <div className="p-3 bg-slate-900/60 rounded-2xl border-l-4 border-amber-500">
-                    <div className="text-xs font-bold text-white uppercase">Speed Demon</div>
-                    <div className="text-[10px] text-slate-400 mb-1.5">Whack 50 moles in 60s</div>
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-black text-amber-400 uppercase">Reward: +750 Coins</span>
-                      <span className="text-slate-400 font-bold">+15 Gems</span>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                </section>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* MULTIPLAYER LOBBY (Room creation, code sharing, quick matchmaking) */}
         {gameState === 'multiplayer_lobby' && (

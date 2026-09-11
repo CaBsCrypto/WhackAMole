@@ -478,32 +478,33 @@ export class ParticleManager {
   }
 
   public emitExplosion(pos: THREE.Vector3) {
-    // Lightweight mobile bomb explosion: 8 particles (5 sparks, 3 smoke)
-    const count = 8;
+    // Subtle bomb pop: 5 particles (3 sparks, 2 smoke puffs)
+    const count = 5;
     for (let i = 0; i < count; i++) {
-      const isSmoke = i >= 5; // 5 sparks (0..4), 3 smoke (5..7)
+      const isSmoke = i >= 3; // 3 sparks (0..2), 2 smoke (3..4)
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.random() * Math.PI;
-      const speed = 2.2 + Math.random() * 3.0;
-      const size = isSmoke ? 0.16 : 0.11;
+      const speed = 1.2 + Math.random() * 1.8;
+      const size = isSmoke ? 0.12 : 0.08;
 
       this.spawnParticle(
         this.octahedronGeom,
         isSmoke ? this.matSmoke : this.matFire,
         pos,
         Math.sin(phi) * Math.cos(theta) * speed,
-        Math.abs(Math.cos(phi)) * speed + 1.5,
+        Math.abs(Math.cos(phi)) * speed + 0.8,
         Math.sin(phi) * Math.sin(theta) * speed,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * 3,
         size, size, size,
-        isSmoke ? 2.5 : 5.5,
-        0.26 + Math.random() * 0.12, // 0.26s to 0.38s lifespan
+        isSmoke ? 1.5 : 3.5,
+        0.18 + Math.random() * 0.10, // 0.18s–0.28s lifespan (very short)
         isSmoke ? 0.3 : -0.4
       );
     }
   }
+
 
   public emitFrostShards(pos: THREE.Vector3) {
     const count = 14;

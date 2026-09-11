@@ -93,9 +93,10 @@ const MOLE_THEMES: Record<
     glowColor: '#ea580c',
     flashColor: 'rgba(239, 68, 68, 0.9)',
     shapes: ['circle', 'streak'],
-    baseCount: 8,
-    speedMultiplier: 1.0,
+    baseCount: 5,
+    speedMultiplier: 0.8,
   },
+
 };
 
 

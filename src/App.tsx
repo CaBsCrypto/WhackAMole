@@ -754,8 +754,9 @@ export default function App() {
           setScore((s) => Math.max(0, s - 250));
           setCombo(0);
           setBombsHit((b) => b + 1);
-          addFloatingText('-250 💥 BOMB!', clientX, clientY, '#ef4444', 1.4);
-          triggerScreenShake(6.5);
+          addFloatingText('-250 💥 BOMB!', clientX, clientY, '#ef4444', 1.1);
+          triggerScreenShake(4.0);
+
         }
         mole.state = 'exploded';
         setParticleExplosionTrigger({
@@ -784,7 +785,7 @@ export default function App() {
         let hitShakeIntensity = 4.5;
         switch (mole.type) {
           case 'bomb':
-            hitShakeIntensity = 12.0; // Explosive blast
+            hitShakeIntensity = 5.0;  // Subtle bomb pop (reduced from 12)
             break;
           case 'fast':
             hitShakeIntensity = 5.5;  // Snappy quick-draw flick

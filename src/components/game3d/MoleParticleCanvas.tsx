@@ -71,29 +71,29 @@ const MOLE_THEMES: Record<
 > = {
   standard: {
     colors: ['#ef4444', '#f97316', '#facc15', '#22c55e', '#ffffff', '#fb923c'],
-    ringColor: 'rgba(239, 68, 68, 0.85)',
+    ringColor: 'rgba(239, 68, 68, 0.75)',
     glowColor: '#f97316',
-    flashColor: 'rgba(249, 115, 22, 0.7)',
+    flashColor: 'rgba(249, 115, 22, 0.6)',
     shapes: ['circle', 'streak'],
-    baseCount: 20,
+    baseCount: 8,
     speedMultiplier: 1.0,
   },
   fast: {
     colors: ['#06b6d4', '#38bdf8', '#67e8f9', '#facc15', '#ffffff', '#0284c7'],
-    ringColor: 'rgba(6, 182, 212, 0.9)',
+    ringColor: 'rgba(6, 182, 212, 0.8)',
     glowColor: '#38bdf8',
-    flashColor: 'rgba(56, 189, 248, 0.8)',
+    flashColor: 'rgba(56, 189, 248, 0.7)',
     shapes: ['streak', 'diamond', 'circle'],
-    baseCount: 22,
-    speedMultiplier: 1.45,
+    baseCount: 9,
+    speedMultiplier: 1.35,
   },
   bomb: {
     colors: ['#dc2626', '#ea580c', '#f59e0b', '#1e293b', '#fee2e2', '#7f1d1d'],
-    ringColor: 'rgba(220, 38, 38, 0.95)',
+    ringColor: 'rgba(220, 38, 38, 0.85)',
     glowColor: '#ea580c',
-    flashColor: 'rgba(239, 68, 68, 0.9)',
+    flashColor: 'rgba(239, 68, 68, 0.75)',
     shapes: ['circle', 'streak'],
-    baseCount: 5,
+    baseCount: 4,
     speedMultiplier: 0.8,
   },
 
@@ -419,8 +419,8 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
           });
         }
 
-        // 4. Auxiliary Micro-Sparks / Glitter
-        const glitterCount = isCrit ? 14 : 6;
+        // 4. Auxiliary Micro-Sparks / Glitter (lightweight on mobile)
+        const glitterCount = isCrit ? 6 : 3;
 
         for (let g = 0; g < glitterCount; g++) {
           const angle = Math.random() * Math.PI * 2;

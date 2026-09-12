@@ -105,14 +105,6 @@ interface MoleScene3DProps {
   onHitHole: (holeIndex: number, clientX: number, clientY: number) => void;
   floatingTexts: FloatingText[];
   screenShakeTrigger?: { intensity: number; timestamp: number };
-  particleExplosionTrigger?: {
-    x: number;
-    y: number;
-    type: MoleType;
-    isCrit?: boolean;
-    isDefeated?: boolean;
-    timestamp: number;
-  } | null;
 }
 
 // 3x3 Grid Hole Coordinates in 3D Space
@@ -200,7 +192,6 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
   onHitHole,
   floatingTexts,
   screenShakeTrigger,
-  particleExplosionTrigger,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -1122,31 +1113,15 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
             setTauntBubbles((prev) => prev.filter((b) => b.holeIndex !== mole.holeIndex));
           }, 450);
 
+          // Only trigger sync defeat burst if mole was not already hit via player whack (e.g. via Pizza Oven)
           const holePos = HOLE_COORDS[mole.holeIndex];
           if (holePos && particlesRef.current && mole.type !== 'bomb') {
             const impactPos = new THREE.Vector3(holePos.x, 0.35, holePos.z);
             if (pizzaOvenActiveRef.current) {
-              // Incinerated by Pizza Oven: fiery inferno blast + massive burst of roasted pizza ingredients
+              // Incinerated by Pizza Oven
               particlesRef.current.emitPizzaOvenBurn(impactPos);
-              particlesRef.current.emitPizzaIngredientsBurst(impactPos, true);
               particlesRef.current.emitPizzaKitchenHit(impactPos, true);
-              triggerCameraShake(0.28);
-            } else {
-              // Regular defeat burst of pizza ingredients: flour clouds, tomato sauce splashes, oregano sparkles
-              particlesRef.current.emitPizzaIngredientsBurst(impactPos, false);
-              particlesRef.current.emitPizzaKitchenHit(impactPos, false);
-            }
-          }
-
-          // Trigger 2D canvas particle explosion at mole screen coordinate if not recently clicked (skip bomb to avoid double trigger)
-          if (mole.type !== 'bomb' && containerRef.current && Date.now() - lastExplosionTimeRef.current > 150) {
-            const screenPos = getHoleScreenPosition(mole.holeIndex, 0.8);
-            if (screenPos) {
-              const rect = containerRef.current.getBoundingClientRect();
-              const hitX = (rect.width * screenPos.xPercent) / 100;
-              const hitY = (rect.height * screenPos.yPercent) / 100;
-              particleCanvasRef.current?.triggerExplosion(hitX, hitY, mole.type, false, true);
-              lastExplosionTimeRef.current = Date.now();
+              triggerCameraShake(0.18);
             }
           }
         }
@@ -1189,24 +1164,6 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
       triggerCameraShake(screenShakeTrigger.intensity * 0.024);
     }
   }, [screenShakeTrigger]);
-
-  // Handle external particle explosion trigger (from App.tsx or test triggers)
-  useEffect(() => {
-    if (particleExplosionTrigger && containerRef.current) {
-      if (Date.now() - lastExplosionTimeRef.current < 75) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const hitX = particleExplosionTrigger.x - rect.left;
-      const hitY = particleExplosionTrigger.y - rect.top;
-      particleCanvasRef.current?.triggerExplosion(
-        hitX,
-        hitY,
-        particleExplosionTrigger.type,
-        particleExplosionTrigger.isCrit,
-        particleExplosionTrigger.isDefeated
-      );
-      lastExplosionTimeRef.current = Date.now();
-    }
-  }, [particleExplosionTrigger]);
 
   // Mouse / Pointer Move / Touch Drag: Raycast onto stage plane to move Hammer
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1258,11 +1215,6 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
         hammerCtrlRef.current.swingAt(hammerTarget, isTouchOrGesture);
       }
 
-      // Flour puff emitted onto the prep table at click location
-      if (particlesRef.current && hitPoint) {
-        particlesRef.current.emitFlourCloud(new THREE.Vector3(hitPoint.x, 0.08, hitPoint.z), false, 6);
-      }
-
       if (closestHoleIdx !== -1) {
         const holeCoord = HOLE_COORDS[closestHoleIdx];
         const moleItem = moleMeshesRef.current.get(closestHoleIdx);
@@ -1277,7 +1229,7 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
             moleItem.recoilDuration = 280;
           }
 
-          // Immediate 2D Canvas Particle Explosion Effect with mole-type specific colors
+          // Immediate lightweight 2D Canvas Particle Explosion Effect
           if (containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
             const hitX = clientX - rect.left;
@@ -1307,9 +1259,8 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
             // 100% clean bomb hit: zero 3D particles, zero canvas effects, zero camera shake
             sfx.playExplosion();
           } else {
-            // Always trigger signature Pizza Kitchen trio for edible moles: Flour clouds, Tomato sauce splashes, and Oregano sparkles
+            // Refined single signature Pizza Kitchen burst (crisp flour puff + tomato splash + oregano)
             particlesRef.current?.emitPizzaKitchenHit(impactPos, isCrit || pizzaOvenActiveRef.current);
-            particlesRef.current?.emitPizzaIngredientsBurst(impactPos, isCrit || pizzaOvenActiveRef.current);
 
             if (pizzaOvenActiveRef.current) {
               particlesRef.current?.emitPizzaOvenBurn(impactPos);
@@ -1317,8 +1268,7 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
 
             if (mole.type === 'fast') {
               particlesRef.current?.emitLightningSparks(impactPos);
-              particlesRef.current?.emitHitSparks(impactPos, true, 0x38bdf8);
-              triggerCameraShake(0.18);
+              triggerCameraShake(0.12);
               sfx.playFastWhoosh();
               sfx.playWhack(true);
             } else if (mole.type === 'tough') {

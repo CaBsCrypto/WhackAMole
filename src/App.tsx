@@ -118,38 +118,17 @@ export default function App() {
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
 
   // 4b. Screen Shake Tactile Feedback Engine
-  const [screenShake, setScreenShake] = useState<{ x: number; y: number; rotate: number }>({ x: 0, y: 0, rotate: 0 });
   const [screenShakeClass, setScreenShakeClass] = useState<string>('');
   const [screenShakeTrigger, setScreenShakeTrigger] = useState<{ intensity: number; timestamp: number }>({ intensity: 0, timestamp: 0 });
   const [isPlayHoveredByHand, setIsPlayHoveredByHand] = useState(false);
   const handleStartArcadeRef = useRef<(mode?: GameMode) => void>(() => {});
-  const [particleExplosionTrigger, setParticleExplosionTrigger] = useState<{
-    x: number;
-    y: number;
-    type: MoleType;
-    isCrit?: boolean;
-    isDefeated?: boolean;
-    timestamp: number;
-  } | null>(null);
-  const shakeAnimRef = useRef<number | null>(null);
-  const shakeMagnitudeRef = useRef<number>(0);
   const shakeClassTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerScreenShake = useCallback((intensity: number) => {
-    // 1. Mobile tactile haptic vibration (when available on touch devices)
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        const vibMs = Math.min(80, Math.max(15, Math.round(intensity * 3.5)));
-        navigator.vibrate(vibMs);
-      } catch {
-        // Vibration not permitted or supported
-      }
-    }
-
-    // 2. Synchronize with 3D Three.js camera shake
+    // 1. Synchronize with 3D Three.js camera shake (clean WebGL offset without DOM re-renders)
     setScreenShakeTrigger({ intensity, timestamp: Date.now() });
 
-    // 3. Select CSS animation class based on intensity tier
+    // 2. Select GPU-accelerated CSS animation class based on intensity tier
     let animClass = 'shake-light';
     if (intensity >= 15) {
       animClass = 'shake-epic';
@@ -162,40 +141,12 @@ export default function App() {
     if (shakeClassTimerRef.current) clearTimeout(shakeClassTimerRef.current);
     shakeClassTimerRef.current = setTimeout(() => {
       setScreenShakeClass('');
-    }, intensity >= 15 ? 450 : 250);
-
-    // 4. Dynamic Physics-Damped Frame Loop (additive accumulation for rapid combos)
-    shakeMagnitudeRef.current = Math.min(32, Math.max(shakeMagnitudeRef.current, intensity) * 1.15);
-
-    if (shakeAnimRef.current === null) {
-      const decay = 0.76; // Dampened decay: settles smoothly within ~200ms without frame drops
-      const step = () => {
-        if (shakeMagnitudeRef.current < 0.25) {
-          shakeMagnitudeRef.current = 0;
-          setScreenShake({ x: 0, y: 0, rotate: 0 });
-          shakeAnimRef.current = null;
-          return;
-        }
-
-        const mag = shakeMagnitudeRef.current;
-        const angle = Math.random() * Math.PI * 2;
-        const dist = (0.4 + Math.random() * 0.6) * mag;
-        const x = Math.cos(angle) * dist;
-        const y = Math.sin(angle) * dist;
-        const rotate = (Math.random() - 0.5) * mag * 0.12;
-
-        setScreenShake({ x, y, rotate });
-        shakeMagnitudeRef.current *= decay;
-        shakeAnimRef.current = requestAnimationFrame(step);
-      };
-      shakeAnimRef.current = requestAnimationFrame(step);
-    }
+    }, intensity >= 15 ? 400 : 220);
   }, []);
 
   // Cleanup screen shake on unmount
   useEffect(() => {
     return () => {
-      if (shakeAnimRef.current !== null) cancelAnimationFrame(shakeAnimRef.current);
       if (shakeClassTimerRef.current) clearTimeout(shakeClassTimerRef.current);
     };
   }, []);
@@ -724,15 +675,6 @@ export default function App() {
         mole.health -= damage;
         const isDefeated = mole.health <= 0;
 
-        setParticleExplosionTrigger({
-          x: clientX,
-          y: clientY,
-          type: mole.type,
-          isCrit,
-          isDefeated,
-          timestamp: Date.now(),
-        });
-
         // Calculate screen-shake intensity scaling based on mole type
         let hitShakeIntensity = 4.5;
         switch (mole.type) {
@@ -1039,13 +981,6 @@ export default function App() {
       <main
         id="game_stage_viewport"
         className={`relative flex-1 w-full h-full overflow-hidden z-10 ${screenShakeClass}`}
-        style={{
-          transform:
-            screenShake.x !== 0 || screenShake.y !== 0
-              ? `translate3d(${screenShake.x}px, ${screenShake.y}px, 0) rotate(${screenShake.rotate}deg)`
-              : undefined,
-          willChange: 'transform',
-        }}
       >
         {/* 3D Three.js WebGL Scene */}
         <MoleScene3D
@@ -1060,7 +995,6 @@ export default function App() {
           onHitHole={handleHitHole}
           floatingTexts={floatingTexts}
           screenShakeTrigger={screenShakeTrigger}
-          particleExplosionTrigger={particleExplosionTrigger}
         />
 
         {/* MediaPipe Hands Vision Overlays (Reticle & PiP Camera Window) */}
@@ -1374,16 +1308,6 @@ export default function App() {
               setActiveModal(null);
             }}
             onTestParticleExplosion={(type) => {
-              const cx = typeof window !== 'undefined' ? window.innerWidth / 2 : 400;
-              const cy = typeof window !== 'undefined' ? window.innerHeight / 2 : 300;
-              setParticleExplosionTrigger({
-                x: cx,
-                y: cy,
-                type,
-                isCrit: true,
-                isDefeated: true,
-                timestamp: Date.now(),
-              });
               triggerScreenShake(6.5);
               sfx.playMoleSpawn(type);
             }}

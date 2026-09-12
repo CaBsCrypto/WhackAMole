@@ -550,30 +550,22 @@ export default function App() {
           pattern = 'lightning_fast';
         } else {
           const rand = Math.random();
-          if (rand < 0.60) {
-            // Standard Mole: classic chef, most common
+          if (rand < 0.70) {
+            // Standard Mole: classic chef, 70% spawn
             type = 'standard';
             health = 1;
             points = 100;
             coins = 5;
             speed = 1.0;
             pattern = 'normal';
-          } else if (rand < 0.85) {
-            // Fast Mole: lightning fast, high score reward
+          } else {
+            // Fast Mole: lightning fast reward mole, 30% spawn
             type = 'fast';
             health = 1;
             points = 220;
             coins = 15;
             speed = 1.8;
             pattern = 'lightning_fast';
-          } else {
-            // Bomb Mole: avoid it! -250 pts penalty
-            type = 'bomb';
-            health = 1;
-            points = -250;
-            coins = 0;
-            speed = 1.0;
-            pattern = 'fuse_burn';
           }
         }
 

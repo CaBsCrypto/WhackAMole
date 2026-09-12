@@ -103,9 +103,25 @@ export class HandDetectorService {
       };
     }
 
-    const result: HandLandmarkerResult = this.landmarker.detectForVideo(videoElement, timestampMs);
+    let result: HandLandmarkerResult | null = null;
+    try {
+      result = this.landmarker.detectForVideo(videoElement, timestampMs);
+    } catch (detectErr) {
+      console.warn('[HandDetector] detectForVideo frame skipped:', detectErr);
+      return {
+        cursor: null,
+        gesture: {
+          isFist: false,
+          isPinching: false,
+          isWhacking: false,
+          pinchDistance: 1.0,
+          fistCurledCount: 0,
+        },
+        hasHand: false,
+      };
+    }
 
-    if (!result.landmarks || result.landmarks.length === 0 || !result.landmarks[0] || result.landmarks[0].length === 0) {
+    if (!result || !result.landmarks || result.landmarks.length === 0 || !result.landmarks[0] || result.landmarks[0].length === 0) {
       // Hand out of frame: reset smoothing anchor & release gestures
       this.hasPreviousPoint = false;
       this.isFist = false;

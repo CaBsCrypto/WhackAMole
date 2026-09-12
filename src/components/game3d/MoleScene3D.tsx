@@ -1304,9 +1304,7 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
           const impactPos = new THREE.Vector3(holeCoord.x, 0.4, holeCoord.z);
 
           if (mole.type === 'bomb') {
-            // Lightweight bomb explosion redesign: omit pizza ingredients, only emit subtle pop
-            particlesRef.current?.emitExplosion(impactPos);
-            triggerCameraShake(0.08);
+            // 100% clean bomb hit: zero 3D particles, zero canvas effects, zero camera shake
             sfx.playExplosion();
           } else {
             // Always trigger signature Pizza Kitchen trio for edible moles: Flour clouds, Tomato sauce splashes, and Oregano sparkles
@@ -1316,80 +1314,80 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
             if (pizzaOvenActiveRef.current) {
               particlesRef.current?.emitPizzaOvenBurn(impactPos);
             }
-          }
 
-          if (mole.type === 'fast') {
-            particlesRef.current?.emitLightningSparks(impactPos);
-            particlesRef.current?.emitHitSparks(impactPos, true, 0x38bdf8);
-            triggerCameraShake(0.18);
-            sfx.playFastWhoosh();
-            sfx.playWhack(true);
-          } else if (mole.type === 'tough') {
-            const isLethal = mole.health <= 1;
-            particlesRef.current?.emitArmorChipped(impactPos, isLethal);
-            particlesRef.current?.emitHitSparks(impactPos, true, 0x94a3b8);
-            if (isLethal) {
-              particlesRef.current?.emitPizzaSlices(impactPos, 4);
-            }
-            triggerCameraShake(isLethal ? 0.35 : 0.2);
-            if (isLethal) {
-              sfx.playArmorBreak();
+            if (mole.type === 'fast') {
+              particlesRef.current?.emitLightningSparks(impactPos);
+              particlesRef.current?.emitHitSparks(impactPos, true, 0x38bdf8);
+              triggerCameraShake(0.18);
+              sfx.playFastWhoosh();
+              sfx.playWhack(true);
+            } else if (mole.type === 'tough') {
+              const isLethal = mole.health <= 1;
+              particlesRef.current?.emitArmorChipped(impactPos, isLethal);
+              particlesRef.current?.emitHitSparks(impactPos, true, 0x94a3b8);
+              if (isLethal) {
+                particlesRef.current?.emitPizzaSlices(impactPos, 4);
+              }
+              triggerCameraShake(isLethal ? 0.35 : 0.2);
+              if (isLethal) {
+                sfx.playArmorBreak();
+              } else {
+                sfx.playMetalClang();
+              }
+            } else if (mole.type === 'helmet') {
+              const isLethal = mole.health <= 1;
+              particlesRef.current?.emitArmorChipped(impactPos, isLethal);
+              particlesRef.current?.emitHitSparks(impactPos, true, 0xf59e0b);
+              triggerCameraShake(isLethal ? 0.25 : 0.18);
+              sfx.playHelmetHit(isLethal);
+            } else if (mole.type === 'frost') {
+              particlesRef.current?.emitFrostShards(impactPos);
+              triggerCameraShake(0.2);
+              sfx.playFrostHit();
+            } else if (mole.type === 'golden') {
+              particlesRef.current?.emitCoins(impactPos, 10);
+              particlesRef.current?.emitPizzaSlices(impactPos, 8);
+              particlesRef.current?.emitHitSparks(impactPos, true, 0xfef08a);
+              triggerCameraShake(0.25);
+              sfx.playGoldenHit();
+            } else if (mole.type === 'rainbow') {
+              particlesRef.current?.emitRainbowBurst(impactPos);
+              triggerCameraShake(0.2);
+              sfx.playPowerup();
+              sfx.playWhack(true);
+            } else if (mole.type === 'phantom') {
+              particlesRef.current?.emitPhantomMist(impactPos);
+              triggerCameraShake(0.15);
+              sfx.playPhantomDisappear();
+            } else if (mole.type === 'boss') {
+              particlesRef.current?.emitBossRoar(impactPos);
+              particlesRef.current?.emitHitSparks(impactPos, true, 0xef4444);
+              triggerCameraShake(0.4);
+              sfx.playBossRoar();
+              sfx.playWhack(true);
+            } else if (selectedHammer.specialEffect === 'fire_burst') {
+              particlesRef.current?.emitFireEmbers(impactPos);
+              triggerCameraShake(0.2);
+              sfx.playFireBurst();
+            } else if (selectedHammer.specialEffect === 'freeze_wave') {
+              particlesRef.current?.emitFrostShards(impactPos);
+              triggerCameraShake(0.15);
+              sfx.playFreeze();
+            } else if (selectedHammer.specialEffect === 'lightning') {
+              particlesRef.current?.emitLightningSparks(impactPos);
+              triggerCameraShake(0.22);
+              sfx.playLightning();
             } else {
-              sfx.playMetalClang();
-            }
-          } else if (mole.type === 'helmet') {
-            const isLethal = mole.health <= 1;
-            particlesRef.current?.emitArmorChipped(impactPos, isLethal);
-            particlesRef.current?.emitHitSparks(impactPos, true, 0xf59e0b);
-            triggerCameraShake(isLethal ? 0.25 : 0.18);
-            sfx.playHelmetHit(isLethal);
-          } else if (mole.type === 'frost') {
-            particlesRef.current?.emitFrostShards(impactPos);
-            triggerCameraShake(0.2);
-            sfx.playFrostHit();
-          } else if (mole.type === 'golden') {
-            particlesRef.current?.emitCoins(impactPos, 10);
-            particlesRef.current?.emitPizzaSlices(impactPos, 8);
-            particlesRef.current?.emitHitSparks(impactPos, true, 0xfef08a);
-            triggerCameraShake(0.25);
-            sfx.playGoldenHit();
-          } else if (mole.type === 'rainbow') {
-            particlesRef.current?.emitRainbowBurst(impactPos);
-            triggerCameraShake(0.2);
-            sfx.playPowerup();
-            sfx.playWhack(true);
-          } else if (mole.type === 'phantom') {
-            particlesRef.current?.emitPhantomMist(impactPos);
-            triggerCameraShake(0.15);
-            sfx.playPhantomDisappear();
-          } else if (mole.type === 'boss') {
-            particlesRef.current?.emitBossRoar(impactPos);
-            particlesRef.current?.emitHitSparks(impactPos, true, 0xef4444);
-            triggerCameraShake(0.4);
-            sfx.playBossRoar();
-            sfx.playWhack(true);
-          } else if (selectedHammer.specialEffect === 'fire_burst') {
-            particlesRef.current?.emitFireEmbers(impactPos);
-            triggerCameraShake(0.2);
-            sfx.playFireBurst();
-          } else if (selectedHammer.specialEffect === 'freeze_wave') {
-            particlesRef.current?.emitFrostShards(impactPos);
-            triggerCameraShake(0.15);
-            sfx.playFreeze();
-          } else if (selectedHammer.specialEffect === 'lightning') {
-            particlesRef.current?.emitLightningSparks(impactPos);
-            triggerCameraShake(0.22);
-            sfx.playLightning();
-          } else {
-            if (isCrit) {
-              particlesRef.current?.emitPizzaSlices(impactPos, 5);
-            }
-            particlesRef.current?.emitHitSparks(impactPos, isCrit);
-            triggerCameraShake(isCrit ? 0.22 : 0.1);
-            if (selectedHammer.headShape === 'uslero' || selectedHammer.headShape === 'cylinder') {
-              sfx.playUsleroSmash(isCrit);
-            } else {
-              sfx.playWhack(isCrit);
+              if (isCrit) {
+                particlesRef.current?.emitPizzaSlices(impactPos, 5);
+              }
+              particlesRef.current?.emitHitSparks(impactPos, isCrit);
+              triggerCameraShake(isCrit ? 0.22 : 0.1);
+              if (selectedHammer.headShape === 'uslero' || selectedHammer.headShape === 'cylinder') {
+                sfx.playUsleroSmash(isCrit);
+              } else {
+                sfx.playWhack(isCrit);
+              }
             }
           }
         }

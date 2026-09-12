@@ -335,6 +335,9 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         isCrit = false,
         isDefeated = false
       ) => {
+        // Bomb explosion 100% disabled: zero flashes, rings or canvas particles for total stability
+        if (type === 'bomb') return;
+
         resizeCanvas();
         const theme = MOLE_THEMES[type] || MOLE_THEMES.standard;
 
@@ -348,27 +351,27 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         flashesRef.current.push({
           x,
           y,
-          radius: isCrit ? 48 : (type === 'bomb' ? 18 : 34),
+          radius: isCrit ? 48 : 34,
           color: theme.flashColor,
-          alpha: type === 'bomb' ? 0.6 : 0.85,
+          alpha: 0.85,
           life: 0,
-          maxLife: type === 'bomb' ? 0.06 : 0.18,
+          maxLife: 0.18,
         });
 
-        // 2. Shockwave Expanding Ring (compact for bomb so it doesn't blow out mobile screens)
+        // 2. Shockwave Expanding Ring
         ringsRef.current.push({
           x,
           y,
           radius: 6,
-          maxRadius: type === 'bomb' ? 36 : (isCrit ? 95 : 72),
+          maxRadius: isCrit ? 95 : 72,
           color: theme.ringColor,
-          lineWidth: type === 'bomb' ? 2 : (isCrit ? 5.5 : 3.5),
+          lineWidth: isCrit ? 5.5 : 3.5,
           life: 0,
-          maxLife: type === 'bomb' ? 0.18 : 0.3,
+          maxLife: 0.3,
         });
 
-        // Extra secondary ring on crits (bomb excluded for zero-lag mobile)
-        if (isCrit && type !== 'bomb') {
+        // Extra secondary ring on crits
+        if (isCrit) {
           setTimeout(() => {
             ringsRef.current.push({
               x,
@@ -407,10 +410,8 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
             baseSize,
             alpha: 1.0,
             life: 0,
-            maxLife: type === 'bomb'
-              ? 0.22 + Math.random() * 0.10
-              : 0.4 + Math.random() * 0.3,
-            gravity: type === 'bomb' ? 6.5 : 5.0,
+            maxLife: 0.4 + Math.random() * 0.3,
+            gravity: 5.0,
             drag: 0.945,
             shape,
             rotation: Math.random() * Math.PI * 2,
@@ -418,8 +419,8 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
           });
         }
 
-        // 4. Auxiliary Micro-Sparks / Glitter (omitted for bomb)
-        const glitterCount = type === 'bomb' ? 0 : (isCrit ? 14 : 6);
+        // 4. Auxiliary Micro-Sparks / Glitter
+        const glitterCount = isCrit ? 14 : 6;
 
         for (let g = 0; g < glitterCount; g++) {
           const angle = Math.random() * Math.PI * 2;

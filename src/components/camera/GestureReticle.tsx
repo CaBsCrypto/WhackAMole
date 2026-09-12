@@ -7,7 +7,7 @@ interface GestureReticleProps {
   active?: boolean;
 }
 
-export const GestureReticle: React.FC<GestureReticleProps> = React.memo(({
+export const GestureReticle: React.FC<GestureReticleProps> = ({
   cursor,
   gesture,
   active = true,
@@ -177,4 +177,4 @@ export const GestureReticle: React.FC<GestureReticleProps> = React.memo(({
       </div>
     </div>
   );
-});
+};

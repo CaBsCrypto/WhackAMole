@@ -13,7 +13,7 @@ interface CameraPiPViewProps {
   onSwitchToClassic?: () => void;
 }
 
-export const CameraPiPView: React.FC<CameraPiPViewProps> = React.memo(({
+export const CameraPiPView: React.FC<CameraPiPViewProps> = ({
   videoRef,
   canvasRef,
   status,
@@ -201,4 +201,4 @@ export const CameraPiPView: React.FC<CameraPiPViewProps> = React.memo(({
       </div>
     </div>
   );
-});
+};

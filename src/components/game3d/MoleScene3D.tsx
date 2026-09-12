@@ -296,18 +296,11 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
     camera.lookAt(config.targetPos);
     cameraRef.current = camera;
 
-    // 3. Renderer - Optimized pixel ratio (max 1.25 on mobile to avoid 4K texture overdraw & GPU lag)
-    const isMobileDevice = width < 768 || window.innerWidth < 768;
-    const maxDpr = isMobileDevice ? 1.25 : 1.75;
-    const renderer = new THREE.WebGLRenderer({
-      antialias: !isMobileDevice,
-      alpha: false,
-      powerPreference: 'high-performance',
-      precision: isMobileDevice ? 'mediump' : 'highp',
-    });
+    // 3. Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
-    renderer.shadowMap.enabled = !isMobileDevice; // Disable heavy real-time shadow passes on mobile for zero-lag
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
@@ -1027,10 +1020,8 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
         ovenGroupRef.current.scale.copy(cfg.domeScale);
       }
 
-      const isMob = w < 768 || window.innerWidth < 768;
-      const targetDpr = isMob ? 1.25 : 1.75;
       rendererRef.current.setSize(w, h);
-      rendererRef.current.setPixelRatio(Math.min(window.devicePixelRatio || 1, targetDpr));
+      rendererRef.current.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     };
 
     const ro = new ResizeObserver(handleResize);

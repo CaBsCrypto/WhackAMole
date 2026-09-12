@@ -725,18 +725,9 @@ export default function App() {
           setCombo(0);
           setBombsHit((b) => b + 1);
           addFloatingText('-250 💥 BOMB!', clientX, clientY, '#ef4444', 1.1);
-          triggerScreenShake(4.0);
-
+          triggerScreenShake(2.5); // Soft nudge, no heavy shaking or layout recalculation
         }
         mole.state = 'exploded';
-        setParticleExplosionTrigger({
-          x: clientX,
-          y: clientY,
-          type: 'bomb',
-          isCrit: false,
-          isDefeated: true,
-          timestamp: Date.now(),
-        });
       } else {
         // Successful Whack!
         mole.health -= damage;

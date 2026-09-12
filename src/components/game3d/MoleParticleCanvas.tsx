@@ -344,27 +344,27 @@ export const MoleParticleCanvas = forwardRef<MoleParticleCanvasRef, { className?
         const countMult = (isCrit ? 1.4 : 1.0) * (isDefeated ? 1.25 : 1.0);
         const particleCount = Math.round(theme.baseCount * countMult);
 
-        // 1. Central Core Impact Flash (80ms flash for punchy zero-lag bomb pop)
+        // 1. Central Core Impact Flash
         flashesRef.current.push({
           x,
           y,
-          radius: isCrit ? 48 : (type === 'bomb' ? 30 : 34),
+          radius: isCrit ? 48 : (type === 'bomb' ? 18 : 34),
           color: theme.flashColor,
-          alpha: 0.85,
+          alpha: type === 'bomb' ? 0.6 : 0.85,
           life: 0,
-          maxLife: type === 'bomb' ? 0.08 : 0.18,
+          maxLife: type === 'bomb' ? 0.06 : 0.18,
         });
 
-        // 2. Shockwave Expanding Ring
+        // 2. Shockwave Expanding Ring (compact for bomb so it doesn't blow out mobile screens)
         ringsRef.current.push({
           x,
           y,
-          radius: 8,
-          maxRadius: (isCrit ? 95 : 72) * (type === 'bomb' ? 1.3 : 1.0),
+          radius: 6,
+          maxRadius: type === 'bomb' ? 36 : (isCrit ? 95 : 72),
           color: theme.ringColor,
-          lineWidth: isCrit ? 5.5 : 3.5,
+          lineWidth: type === 'bomb' ? 2 : (isCrit ? 5.5 : 3.5),
           life: 0,
-          maxLife: 0.3,
+          maxLife: type === 'bomb' ? 0.18 : 0.3,
         });
 
         // Extra secondary ring on crits (bomb excluded for zero-lag mobile)

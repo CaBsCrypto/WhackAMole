@@ -1123,12 +1123,9 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
           }, 450);
 
           const holePos = HOLE_COORDS[mole.holeIndex];
-          if (holePos && particlesRef.current) {
+          if (holePos && particlesRef.current && mole.type !== 'bomb') {
             const impactPos = new THREE.Vector3(holePos.x, 0.35, holePos.z);
-            if (mole.type === 'bomb') {
-              particlesRef.current.emitExplosion(impactPos);
-              triggerCameraShake(0.18);
-            } else if (pizzaOvenActiveRef.current) {
+            if (pizzaOvenActiveRef.current) {
               // Incinerated by Pizza Oven: fiery inferno blast + massive burst of roasted pizza ingredients
               particlesRef.current.emitPizzaOvenBurn(impactPos);
               particlesRef.current.emitPizzaIngredientsBurst(impactPos, true);
@@ -1141,8 +1138,8 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
             }
           }
 
-          // Trigger 2D canvas particle explosion at mole screen coordinate if not recently clicked
-          if (containerRef.current && Date.now() - lastExplosionTimeRef.current > 150) {
+          // Trigger 2D canvas particle explosion at mole screen coordinate if not recently clicked (skip bomb to avoid double trigger)
+          if (mole.type !== 'bomb' && containerRef.current && Date.now() - lastExplosionTimeRef.current > 150) {
             const screenPos = getHoleScreenPosition(mole.holeIndex, 0.8);
             if (screenPos) {
               const rect = containerRef.current.getBoundingClientRect();
@@ -1307,9 +1304,9 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
           const impactPos = new THREE.Vector3(holeCoord.x, 0.4, holeCoord.z);
 
           if (mole.type === 'bomb') {
-            // Lightweight bomb explosion redesign: omit pizza ingredients, only emit explosion
+            // Lightweight bomb explosion redesign: omit pizza ingredients, only emit subtle pop
             particlesRef.current?.emitExplosion(impactPos);
-            triggerCameraShake(0.18);
+            triggerCameraShake(0.08);
             sfx.playExplosion();
           } else {
             // Always trigger signature Pizza Kitchen trio for edible moles: Flour clouds, Tomato sauce splashes, and Oregano sparkles

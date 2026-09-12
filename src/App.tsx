@@ -958,18 +958,18 @@ export default function App() {
                   <Settings className="w-4 h-4" />
                 </button>
 
-                {/* SpicyCrust Portal Link */}
+                {/* SpicyCrust Portal Link - Prominent header button */}
                 <a
                   href="https://spicycrust.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => sfx.playButtonClick()}
-                  className="px-3 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white rounded-xl flex items-center gap-1.5 text-xs font-black uppercase font-display tracking-wider shadow-md shadow-orange-500/20 border border-amber-400/40 transition hover:scale-105"
-                  title="Ir a SpicyCrust.com"
+                  className="px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 hover:from-orange-500 hover:to-amber-500 text-white rounded-xl flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-black uppercase font-display tracking-wider shadow-lg shadow-orange-500/25 border-2 border-amber-300/60 transition-all hover:scale-105 active:scale-95 shrink-0"
+                  title="Volver a la página principal de SpicyCrust"
                 >
-                  <span>🍕</span>
-                  <span className="hidden md:inline">SpicyCrust.com</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="text-base sm:text-lg">🍕</span>
+                  <span className="font-extrabold tracking-normal">SpicyCrust<span className="hidden xs:inline">.com</span></span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
                 </a>
               </div>
             </div>
@@ -1016,6 +1016,7 @@ export default function App() {
               errorMessage={handTracking.errorMessage}
               gesture={handTracking.gesture}
               fps={handTracking.fps}
+              isMenu={gameState === 'menu'}
               onRetry={handTracking.retry}
               onSwitchToClassic={() => handleSetControlMode('classic')}
             />
@@ -1134,6 +1135,21 @@ export default function App() {
                           <span>Pellizca (Pinch) o pulsa para iniciar y golpear topos</span>
                         </div>
                       )}
+
+                      {/* Botón destacado de Retorno a la Página Principal de SpicyCrust */}
+                      <a
+                        href="https://spicycrust.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => sfx.playButtonClick()}
+                        className="mt-4 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-amber-500/30 hover:border-amber-400/60 shadow-lg text-xs sm:text-sm font-bold tracking-wide transition-all group backdrop-blur-md"
+                      >
+                        <span className="text-base group-hover:-translate-x-1 transition-transform">←</span>
+                        <span>Volver a la Pizzería Principal</span>
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[11px] font-bold">
+                          SpicyCrust.com
+                        </span>
+                      </a>
                     </div>
                   </div>
                 </section>

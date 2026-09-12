@@ -9,6 +9,7 @@ interface CameraPiPViewProps {
   errorMessage: string | null;
   gesture: HandGestureState;
   fps: number;
+  isMenu?: boolean;
   onRetry?: () => void;
   onSwitchToClassic?: () => void;
 }
@@ -20,6 +21,7 @@ export const CameraPiPView: React.FC<CameraPiPViewProps> = ({
   errorMessage,
   gesture,
   fps,
+  isMenu = false,
   onRetry,
   onSwitchToClassic,
 }) => {
@@ -70,12 +72,17 @@ export const CameraPiPView: React.FC<CameraPiPViewProps> = ({
 
   const badge = getStatusBadge();
 
+  // Dynamic positioning: top-right during Menu (below top navbar) and bottom-right during Game
+  const positionClass = isMenu
+    ? 'top-20 right-4 sm:right-6'
+    : 'bottom-5 right-5';
+
   // Collapsed 44x44 badge
   if (isCollapsed) {
     return (
       <button
         onClick={() => setIsCollapsed(false)}
-        className="fixed bottom-5 right-5 z-40 w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/20 shadow-2xl flex items-center justify-center text-slate-200 hover:text-white hover:border-orange-500/60 transition-all group backdrop-blur-md"
+        className={`fixed ${positionClass} z-40 w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/20 shadow-2xl flex items-center justify-center text-slate-200 hover:text-white hover:border-orange-500/60 transition-all duration-300 group backdrop-blur-md`}
         title="Expandir vista de cámara MediaPipe"
       >
         <Camera className="w-5 h-5 text-orange-400 group-hover:scale-110 transition-transform" />
@@ -87,7 +94,7 @@ export const CameraPiPView: React.FC<CameraPiPViewProps> = ({
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 w-[240px] h-[170px] rounded-2xl bg-slate-950/85 border border-white/20 shadow-2xl overflow-hidden flex flex-col backdrop-blur-md select-none transition-all animate-fade-in">
+    <div className={`fixed ${positionClass} z-40 w-[200px] h-[145px] sm:w-[240px] sm:h-[170px] rounded-2xl bg-slate-950/85 border border-white/20 shadow-2xl overflow-hidden flex flex-col backdrop-blur-md select-none transition-all duration-500 ease-in-out animate-fade-in`}>
       {/* Top Header Bar */}
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-900/90 border-b border-white/10 z-10">
         <div className="flex items-center gap-1.5">

@@ -34,8 +34,11 @@ export class HandDetectorService {
   private lastTimestamp = 0;
   private hasPreviousPoint = false;
 
-  // Playable margin deadzone
-  private readonly margin = 0.12;
+  // Asymmetric playable margin deadzones:
+  // Top & sides standard, bottom wider so the user reaches bottom moles without hands falling out of webcam view.
+  private readonly marginX = 0.10;
+  private readonly marginYTop = 0.10;
+  private readonly marginYBottom = 0.22;
 
   /**
    * Initializes MediaPipe FilesetResolver and HandLandmarker.
@@ -226,11 +229,11 @@ export class HandDetectorService {
       this.lastRawY = mirroredY;
     }
 
-    // 6. Margin calibration [0.12, 0.88] -> [0, 1]
-    const clampedX = Math.max(this.margin, Math.min(1.0 - this.margin, this.smoothX));
-    const clampedY = Math.max(this.margin, Math.min(1.0 - this.margin, this.smoothY));
-    const normX = (clampedX - this.margin) / (1.0 - 2.0 * this.margin);
-    const normY = (clampedY - this.margin) / (1.0 - 2.0 * this.margin);
+    // 6. Asymmetric Margin calibration: allows reaching bottom holes comfortably
+    const clampedX = Math.max(this.marginX, Math.min(1.0 - this.marginX, this.smoothX));
+    const clampedY = Math.max(this.marginYTop, Math.min(1.0 - this.marginYBottom, this.smoothY));
+    const normX = (clampedX - this.marginX) / (1.0 - 2.0 * this.marginX);
+    const normY = (clampedY - this.marginYTop) / (1.0 - this.marginYTop - this.marginYBottom);
 
     // 7. Coordinate Space Projections
     // Three.js NDC [-1, 1]

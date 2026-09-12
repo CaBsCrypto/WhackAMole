@@ -487,16 +487,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
         </div>
 
-        {/* Optional Open Recipe Codex Prompt Button */}
-        {onOpenCodex && (
-          <button
-            id="gameover_btn_codex"
-            onClick={onOpenCodex}
-            className="w-full mb-3 py-2.5 bg-gradient-to-r from-amber-600/30 to-red-600/30 hover:from-amber-600/50 hover:to-red-600/50 text-amber-300 border border-amber-500/30 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition"
-          >
-            <BookOpen className="w-4 h-4" /> Abrir Recetario & Hornear Pizzas
-          </button>
-        )}
+
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2">

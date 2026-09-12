@@ -1237,8 +1237,11 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
       let closestDist = Infinity;
 
       HOLE_COORDS.forEach((pos, idx) => {
+        // Bottom row holes (6, 7, 8 at z > 1.0) receive a +0.55 radius boost for effortless air reaches
+        const isBottomRow = pos.z > 1.0;
+        const effectiveRadius = isTouchOrGesture && isBottomRow ? maxHitRadius + 0.55 : maxHitRadius;
         const dist = Math.hypot(hitPoint.x - pos.x, hitPoint.z - pos.z);
-        if (dist < maxHitRadius && dist < closestDist) {
+        if (dist < effectiveRadius && dist < closestDist) {
           closestDist = dist;
           closestHoleIdx = idx;
         }
@@ -1423,8 +1426,8 @@ export const MoleScene3D = forwardRef<MoleScene3DRef, MoleScene3DProps>(({
         const hitPoint = new THREE.Vector3();
         const intersects = raycasterRef.current.ray.intersectPlane(planeIntersectRef.current, hitPoint);
         if (!intersects) return -1;
-        // Ergonomic 1.75 hit radius for air gestures
-        return executeWhack(hitPoint, clientX, clientY, 1.75, true);
+        // Ergonomic 2.0 base hit radius for air gestures (expanded for fluid hits)
+        return executeWhack(hitPoint, clientX, clientY, 2.0, true);
       },
       setGestureActive(_active: boolean) {
         // Can be used for custom gesture visual states

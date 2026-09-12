@@ -39,9 +39,8 @@ const CameraPiPView = React.lazy(() =>
 const GestureReticle = React.lazy(() =>
   import('./components/camera/GestureReticle').then((m) => ({ default: m.GestureReticle }))
 );
-const CameraTutorialModal = React.lazy(() =>
-  import('./components/camera/CameraTutorialModal').then((m) => ({ default: m.CameraTutorialModal }))
-);
+
+
 const CameraSmashStartModal = React.lazy(() =>
   import('./components/camera/CameraSmashStartModal').then((m) => ({ default: m.CameraSmashStartModal }))
 );
@@ -83,20 +82,11 @@ export default function App() {
 
   // 1b. Vision & Control Mode State ('classic' | 'camera')
   const [controlMode, setControlMode] = useState<ControlMode>(() => profile.settings.controlMode || 'classic');
-  const [showCameraTutorial, setShowCameraTutorial] = useState<boolean>(false);
   const [showCameraSmashModal, setShowCameraSmashModal] = useState<boolean>(false);
   const moleSceneRef = useRef<MoleScene3DRef | null>(null);
 
   const handleSetControlMode = useCallback((mode: ControlMode) => {
     setControlMode(mode);
-    if (mode === 'camera') {
-      try {
-        const completed = typeof window !== 'undefined' && localStorage.getItem('whackamole_camera_tutorial_completed') === 'true';
-        if (!completed) {
-          setShowCameraTutorial(true);
-        }
-      } catch {}
-    }
     setProfile((prev) => {
       const updated = {
         ...prev,
@@ -109,18 +99,6 @@ export default function App() {
       return updated;
     });
   }, []);
-
-  // Auto-prompt camera tutorial on camera mode if not yet completed
-  useEffect(() => {
-    if (controlMode === 'camera') {
-      try {
-        const completed = typeof window !== 'undefined' && localStorage.getItem('whackamole_camera_tutorial_completed') === 'true';
-        if (!completed) {
-          setShowCameraTutorial(true);
-        }
-      } catch {}
-    }
-  }, [controlMode]);
 
   // 2. Game Lifecycle State
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'paused' | 'gameover' | 'multiplayer_lobby'>('menu');
@@ -298,12 +276,12 @@ export default function App() {
   // Hand Tracking Handlers for 60 FPS Cursor and Whack Actions
   const handleCameraCursorMove = useCallback((cursor: HandCursorData) => {
     // Only update 3D hammer cursor when playing or on ready menu
-    if (gameState === 'playing' || (gameState === 'menu' && !showCameraTutorial && !showCameraSmashModal && !activeModal)) {
+    if (gameState === 'playing' || (gameState === 'menu' && !showCameraSmashModal && !activeModal)) {
       moleSceneRef.current?.setGestureCursor(cursor.ndcX, cursor.ndcY);
     }
 
-    // R3: Only test hover against #btn_play_arcade when in menu AND no modal or tutorial is active
-    if (gameState === 'menu' && !showCameraTutorial && !showCameraSmashModal && !activeModal) {
+    // R3: Only test hover against #btn_play_arcade when in menu AND no modal is active
+    if (gameState === 'menu' && !showCameraSmashModal && !activeModal) {
       const btn = document.getElementById('btn_play_arcade');
       if (btn) {
         const rect = btn.getBoundingClientRect();
@@ -319,12 +297,13 @@ export default function App() {
     } else {
       setIsPlayHoveredByHand(false);
     }
-  }, [gameState, showCameraTutorial, showCameraSmashModal, activeModal]);
+  }, [gameState, showCameraSmashModal, activeModal]);
 
   const handleCameraWhack = useCallback(
     (cursor: HandCursorData) => {
-      // Disallow all air whacks if any modal/tutorial is open, or if paused/gameover/lobby
-      if (showCameraTutorial || showCameraSmashModal || activeModal || gameState === 'paused' || gameState === 'gameover' || gameState === 'multiplayer_lobby') {
+      // Disallow all air whacks if any modal is open, or if paused/gameover/lobby
+      if (showCameraSmashModal || activeModal || gameState === 'paused' || gameState === 'gameover' || gameState === 'multiplayer_lobby') {
+
         return;
       }
 
@@ -363,7 +342,8 @@ export default function App() {
         }
       }
     },
-    [gameState, showCameraTutorial, showCameraSmashModal, activeModal, controlMode]
+    [gameState, showCameraSmashModal, activeModal, controlMode]
+
   );
 
   const handTracking = useHandTracking({
@@ -1118,10 +1098,10 @@ export default function App() {
               cursor={handTracking.cursor}
               gesture={handTracking.gesture}
               active={
-                !showCameraTutorial &&
                 !activeModal &&
                 (gameState === 'playing' || gameState === 'menu')
               }
+
             />
             <CameraPiPView
               videoRef={handTracking.videoRef}
@@ -1431,25 +1411,14 @@ export default function App() {
               triggerScreenShake(6.5);
               sfx.playMoleSpawn(type);
             }}
-            onRepeatCameraTutorial={() => setShowCameraTutorial(true)}
             onUpdateProfile={handleUpdateProfile}
+
           />
         </React.Suspense>
       )}
 
-      {/* Interactive Camera Mode Onboarding Tutorial */}
-      {showCameraTutorial && (
-        <React.Suspense fallback={null}>
-          <CameraTutorialModal
-            isOpen={showCameraTutorial}
-            onClose={() => setShowCameraTutorial(false)}
-            onComplete={() => setShowCameraTutorial(false)}
-            status={handTracking.status}
-            cursor={handTracking.cursor}
-            gesture={handTracking.gesture}
-          />
-        </React.Suspense>
-      )}
+
+
 
       {/* Camera Mode Smash-To-Start Calibration & Launch Modal */}
       {showCameraSmashModal && (

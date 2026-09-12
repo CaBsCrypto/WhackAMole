@@ -16,7 +16,6 @@ interface PauseAndSettingsModalProps {
   onTriggerKitchenDisaster?: () => void;
   onTestCompleteRecipe?: () => void;
   onTestParticleExplosion?: (type: MoleType) => void;
-  onRepeatCameraTutorial?: () => void;
   onUpdateProfile: (updated: UserProfile) => void;
 }
 
@@ -38,9 +37,9 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
   onTriggerKitchenDisaster,
   onTestCompleteRecipe,
   onTestParticleExplosion,
-  onRepeatCameraTutorial,
   onUpdateProfile,
 }) => {
+
   if (!isOpen) return null;
 
   const handleSoundVolumeChange = (val: number) => {
@@ -197,21 +196,8 @@ export const PauseAndSettingsModal: React.FC<PauseAndSettingsModalProps> = ({
               onChange={handleControlModeChange}
               compact={false}
             />
-            {onRepeatCameraTutorial && (
-              <button
-                type="button"
-                id="btn_repeat_camera_tutorial"
-                onClick={() => {
-                  sfx.playButtonClick();
-                  onRepeatCameraTutorial();
-                  onClose();
-                }}
-                className="mt-1 flex items-center justify-center gap-2 p-2.5 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 rounded-2xl text-xs font-bold text-indigo-300 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-sm"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Repetir Tutorial de Cámara</span>
-              </button>
-            )}
+
+
           </div>
 
           {/* Theme Selector */}
